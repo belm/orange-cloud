@@ -312,7 +312,8 @@ struct AnalyticsService {
         )
     }
 
-    /// 账号用量：Workers 调用（今日/周期）+ R2 操作分类（周期）+ R2 当前存储。
+    /// 账号用量：Workers 调用（今日/周期）。R2 拆为独立查询（见 r2Usage），
+    /// 账号无 R2 / 无 R2 数据集权限时不再拖垮 Workers 用量（issue #4）。
     func accountUsage(accountId: String, periodStart: Date? = nil) async throws -> AccountUsage {
         let data: AccountUsageData = try await client.graphQL(
             query: AccountUsageQuery.text,
@@ -329,6 +330,31 @@ struct AnalyticsService {
         }
         let todayRequests = (account.today ?? []).reduce(0) { $0 + ($1.sum?.requests ?? 0) }
         let quantiles = account.month?.first?.quantiles
+
+        return AccountUsage(
+            workersRequestsToday: todayRequests,
+            workersRequestsMonth: monthSum.requests,
+            workersErrorsMonth:   monthSum.errors,
+            cpuP50Us:             quantiles?.cpuTimeP50,
+            cpuP99Us:             quantiles?.cpuTimeP99,
+            cpuTimeMonthUs:       nil,
+            cpuTimeTodayUs:       nil
+        )
+    }
+
+    /// R2 用量（操作分类 + 当前存储）独立查询。schema/权限不支持时抛错由调用方降级，
+    /// 不影响 Workers 主用量（与 CPU/D1/KV 同策略）。
+    func r2Usage(
+        accountId: String,
+        periodStart: Date? = nil
+    ) async throws -> (classA: Int, classB: Int, storageBytes: Int, objectCount: Int) {
+        let data: R2UsageData = try await client.graphQL(
+            query: R2UsageQuery.text,
+            variables: Self.usageVariables(accountId: accountId, periodStart: periodStart)
+        )
+        guard let account = data.viewer.accounts.first else {
+            throw APIError.notFound
+        }
 
         var classA = 0
         var classB = 0
@@ -349,19 +375,7 @@ struct AnalyticsService {
             objectCount  += group.max?.objectCount ?? 0
         }
 
-        return AccountUsage(
-            workersRequestsToday: todayRequests,
-            workersRequestsMonth: monthSum.requests,
-            workersErrorsMonth:   monthSum.errors,
-            cpuP50Us:             quantiles?.cpuTimeP50,
-            cpuP99Us:             quantiles?.cpuTimeP99,
-            cpuTimeMonthUs:       nil,
-            cpuTimeTodayUs:       nil,
-            r2ClassAMonth:        classA,
-            r2ClassBMonth:        classB,
-            r2StorageBytes:       storageBytes,
-            r2ObjectCount:        objectCount
-        )
+        return (classA, classB, storageBytes, objectCount)
     }
 
     private func fetch(

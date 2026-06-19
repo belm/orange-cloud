@@ -53,11 +53,7 @@ actor CFAPIClient {
         let data = try await performRequest(
             method: "PUT", path: path, queryItems: [], body: body, contentType: contentType
         )
-        do {
-            return try JSONDecoder().decode(T.self, from: data)
-        } catch {
-            throw APIError.decodingError(error)
-        }
+        return try Self.decode(data, path: path)
     }
 
     /// multipart/form-data 写入（KV 写值要求 value + metadata 两个 part）
@@ -75,11 +71,7 @@ actor CFAPIClient {
             method: "PUT", path: path, queryItems: [], body: body,
             contentType: "multipart/form-data; boundary=\(boundary)"
         )
-        do {
-            return try JSONDecoder().decode(T.self, from: data)
-        } catch {
-            throw APIError.decodingError(error)
-        }
+        return try Self.decode(data, path: path)
     }
 
     /// multipart/form-data 写入带文件 part（Snippets 上传 JS 模块）。
@@ -116,11 +108,7 @@ actor CFAPIClient {
             method: "PUT", path: path, queryItems: [], body: body,
             contentType: "multipart/form-data; boundary=\(boundary)"
         )
-        do {
-            return try JSONDecoder().decode(T.self, from: data)
-        } catch {
-            throw APIError.decodingError(error)
-        }
+        return try Self.decode(data, path: path)
     }
 
     /// GraphQL Analytics API。信封是 {data, errors}（GraphQL 错误时 HTTP 仍为 200），
@@ -134,6 +122,9 @@ actor CFAPIClient {
             method: "POST", path: "graphql", queryItems: [], body: body
         )
         if let first = envelope.errors?.first {
+            // GraphQL 错误时 HTTP 仍为 200——网络层只看状态码看不到这层，这里单独记，
+            // 便于排查「请求 200 但数据没出来」（如数据集权限/字段不可用）。
+            AppLog.network.error("graphQL error (\(envelope.errors?.count ?? 1)): \(first.message)")
             throw APIError.cloudflareError(code: 0, message: first.message)
         }
         guard let data = envelope.data else {
@@ -153,11 +144,7 @@ actor CFAPIClient {
         let data = try await performRequest(
             method: method, path: path, queryItems: queryItems, body: body, contentType: "application/json"
         )
-        do {
-            return try JSONDecoder().decode(T.self, from: data)
-        } catch {
-            throw APIError.decodingError(error)
-        }
+        return try Self.decode(data, path: path, method: method)
     }
 
     /// 统一的 HTTP 执行：Token 注入与刷新、401 重试一次、HTTP 错误映射，返回原始 Data
@@ -190,24 +177,37 @@ actor CFAPIClient {
         urlRequest.httpBody = body
 
         // 3. 执行请求
+        let start = Date()
         let (data, response): (Data, URLResponse)
         do {
             (data, response) = try await session.data(for: urlRequest)
         } catch {
+            AppLog.network.error("\(method) /\(Self.logPath(path)) network error: \(error.localizedDescription)")
             throw APIError.networkError(error)
         }
 
         guard let http = response as? HTTPURLResponse else {
+            AppLog.network.error("\(method) /\(Self.logPath(path)) bad response (not HTTP)")
             throw APIError.networkError(URLError(.badServerResponse))
         }
 
+        let elapsedMs = Int(Date().timeIntervalSince(start) * 1000)
+
         // 4. 401：Token 过期，刷新后重试一次
         if http.statusCode == 401 && !isRetry {
+            AppLog.network.notice("\(method) /\(Self.logPath(path)) -> 401, refresh & retry")
             _ = try await authManager.refreshAccessToken()
             return try await performRequest(
                 method: method, path: path, queryItems: queryItems,
                 body: body, contentType: contentType, isRetry: true
             )
+        }
+
+        // 结果各记一行（2xx → info 带响应体大小；其余 → error 带 CF 业务错误码/消息），便于排查
+        if (200...299).contains(http.statusCode) {
+            AppLog.network.info("\(method) /\(Self.logPath(path)) -> \(http.statusCode) (\(elapsedMs)ms, \(Self.sizeLabel(data.count)))")
+        } else {
+            AppLog.network.error("\(method) /\(Self.logPath(path)) -> \(http.statusCode) (\(elapsedMs)ms)\(Self.cfErrorSummary(data))")
         }
 
         // 5. HTTP 错误处理（优先透出 CF 返回的业务错误信息）
@@ -237,19 +237,69 @@ actor CFAPIClient {
         guard let token = await authManager.currentToken else {
             throw APIError.unauthorized
         }
+        let valid: String
         if token.expiresAt.timeIntervalSinceNow < 60 {  // 提前 60 秒刷新
             do {
-                return try await authManager.refreshAccessToken()
+                valid = try await authManager.refreshAccessToken()
             } catch AuthError.notLoggedIn {
                 throw APIError.unauthorized          // 刷新令牌确已失效：不再使用旧 token
             } catch {
                 // 刷新瞬时失败但旧 token 仍在有效期内：先用旧 token，真过期了由 401 重试兜底
                 if token.expiresAt.timeIntervalSinceNow > 0 {
-                    return token.accessToken
+                    valid = token.accessToken
+                } else {
+                    throw error
                 }
-                throw error
             }
+        } else {
+            valid = token.accessToken
         }
-        return token.accessToken
+        return valid
+    }
+
+    /// 日志用路径：截断，避免把超长 KV key 等用户数据完整写进日志
+    private static func logPath(_ path: String) -> String {
+        path.count > 80 ? String(path.prefix(80)) + "…" : path
+    }
+
+    // MARK: - 解码与诊断（统一记日志，绝不写入数据值，仅字段路径/错误码）
+
+    /// 统一 JSON 解码：失败时记一行（含失败字段路径与类型，不含数据值）再抛 decodingError。
+    /// 「请求 200 但数据没出来」多半在这里现形。
+    private static func decode<T: Decodable>(_ data: Data, path: String, method: String = "PUT") throws -> T {
+        do {
+            return try JSONDecoder().decode(T.self, from: data)
+        } catch {
+            AppLog.network.error("\(method) /\(logPath(path)) decode \(T.self) failed: \(decodeErrorSummary(error))")
+            throw APIError.decodingError(error)
+        }
+    }
+
+    /// 把 DecodingError 浓缩成一句（字段名是 API schema，非用户隐私，可记）
+    private static func decodeErrorSummary(_ error: Error) -> String {
+        guard let de = error as? DecodingError else { return error.localizedDescription }
+        switch de {
+        case .keyNotFound(let key, let ctx):    return "missing '\(key.stringValue)' at [\(codingPath(ctx))]"
+        case .typeMismatch(let type, let ctx):  return "type mismatch \(type) at [\(codingPath(ctx))]"
+        case .valueNotFound(let type, let ctx): return "null \(type) at [\(codingPath(ctx))]"
+        case .dataCorrupted(let ctx):           return "corrupted at [\(codingPath(ctx))]"
+        @unknown default:                       return "decoding error"
+        }
+    }
+
+    private static func codingPath(_ ctx: DecodingError.Context) -> String {
+        ctx.codingPath.map(\.stringValue).joined(separator: ".")
+    }
+
+    /// 非 2xx 时尽力解出 CF 业务错误码/消息（消息是接口级文案，非用户隐私）；解不出返回空串。
+    private static func cfErrorSummary(_ data: Data) -> String {
+        guard let env = try? JSONDecoder().decode(CFAPIResponse<EmptyResponse>.self, from: data),
+              let first = env.errors.first else { return "" }
+        return " cf=\(first.code) \(first.message)"
+    }
+
+    /// 响应体大小（便于发现「200 但空结果」）
+    private static func sizeLabel(_ bytes: Int) -> String {
+        bytes < 1024 ? "\(bytes)B" : String(format: "%.1fKB", Double(bytes) / 1024)
     }
 }

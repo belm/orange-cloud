@@ -2,8 +2,9 @@
 //  AccountUsageModels.swift
 //  Orange Cloud
 //
-//  账号用量（Dashboard）：Workers 调用 + R2 操作/存储，一次 GraphQL 别名查询拉齐。
+//  账号用量（Dashboard）：Workers 调用（主查询）+ R2 操作/存储（独立查询）。
 //  数据集：workersInvocationsAdaptive / r2OperationsAdaptiveGroups / r2StorageAdaptiveGroups。
+//  R2 拆为独立查询：账号未启用 R2 / token 无 R2 数据集权限时不拖垮 Workers 主用量（issue #4）。
 //
 
 import Foundation
@@ -12,7 +13,9 @@ import Foundation
 
 nonisolated enum AccountUsageQuery {
 
-    /// month/today 两个窗口 + R2 月操作 + R2 当前存储
+    /// month/today 两个窗口（仅 Workers 调用）。R2 见独立的 R2UsageQuery——
+    /// 账号未启用 R2 / token 无 R2 数据集权限时 R2 字段会让整条 GraphQL 报错，
+    /// 与 CPU/D1/KV 同策略拆开，保证 Workers 用量始终能加载（issue #4）。
     static let text = """
     query ($accountTag: string!, $monthStart: Time!, $todayStart: Time!, $now: Time!) {
       viewer {
@@ -30,6 +33,20 @@ nonisolated enum AccountUsageQuery {
           ) {
             sum { requests errors subrequests }
           }
+        }
+      }
+    }
+    """
+}
+
+/// R2 用量独立查询：月操作分类 + 当前存储。窗口变量复用 AccountUsageVariables。
+/// 账号未启用 R2 或 token 无 R2 数据集权限时单独失败，不影响 Workers 主用量（issue #4）。
+nonisolated enum R2UsageQuery {
+
+    static let text = """
+    query ($accountTag: string!, $monthStart: Time!, $todayStart: Time!, $now: Time!) {
+      viewer {
+        accounts(filter: { accountTag: $accountTag }) {
           r2Ops: r2OperationsAdaptiveGroups(
             limit: 10000,
             filter: { datetime_geq: $monthStart, datetime_leq: $now }
@@ -115,8 +132,21 @@ nonisolated struct AccountUsageViewer: Codable, Sendable {
 }
 
 nonisolated struct AccountUsageNode: Codable, Sendable {
-    let month:     [WorkersUsageGroup]?
-    let today:     [WorkersUsageGroup]?
+    let month: [WorkersUsageGroup]?
+    let today: [WorkersUsageGroup]?
+}
+
+// MARK: - R2 用量响应（独立查询，复用 R2OpsGroup / R2StorageGroup）
+
+nonisolated struct R2UsageData: Codable, Sendable {
+    let viewer: R2UsageViewer
+}
+
+nonisolated struct R2UsageViewer: Codable, Sendable {
+    let accounts: [R2UsageNode]
+}
+
+nonisolated struct R2UsageNode: Codable, Sendable {
     let r2Ops:     [R2OpsGroup]?
     let r2Storage: [R2StorageGroup]?
 }
@@ -368,11 +398,12 @@ nonisolated struct AccountUsage: Sendable {
     // CPU 总耗时（独立查询合并，schema 不支持时为 nil → 回退分位展示）
     var cpuTimeMonthUs:       Double?
     var cpuTimeTodayUs:       Double?
-    let r2ClassAMonth:        Int
-    let r2ClassBMonth:        Int
+    // R2（独立查询合并，账号无 R2 / 无权限时保持 0，不影响 Workers 用量展示）
+    var r2ClassAMonth:        Int = 0
+    var r2ClassBMonth:        Int = 0
     // 存储优先用 REST /r2/metrics 覆盖（与 Dashboard 同源），GraphQL 采样兜底
-    var r2StorageBytes:       Int
-    var r2ObjectCount:        Int
+    var r2StorageBytes:       Int = 0
+    var r2ObjectCount:        Int = 0
     // D1（独立查询合并，不可用时为 nil → 行隐藏）
     var d1Usage:              D1Usage? = nil
     var d1StorageBytes:       Int? = nil

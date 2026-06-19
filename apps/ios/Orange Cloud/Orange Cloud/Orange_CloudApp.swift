@@ -28,6 +28,11 @@ struct Orange_CloudApp: App {
         WatchSessionManager.shared.start(authManager: manager)
         EntitlementStore.shared.start()
         try? Tips.configure()
+        AppLog.logLaunch(
+            loggedIn: manager.isLoggedIn,
+            sessionCount: manager.sessions.count,
+            iCloudSync: manager.iCloudSyncEnabled
+        )
     }
 
     var body: some Scene {
@@ -43,6 +48,7 @@ struct Orange_CloudApp: App {
         }
         .modelContainer(sharedModelContainer)
         .onChange(of: scenePhase) {
+            AppLog.app.info("scenePhase -> \(String(describing: scenePhase))")
             if scenePhase == .background {
                 BackgroundRefresh.schedule()
             }

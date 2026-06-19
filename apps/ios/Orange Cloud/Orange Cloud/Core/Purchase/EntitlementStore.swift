@@ -8,15 +8,12 @@
 
 import Foundation
 import StoreKit
-import os
 
 @Observable
 @MainActor
 final class EntitlementStore {
 
     static let shared = EntitlementStore()
-
-    private static let logger = Logger(subsystem: "jiamin.chen.orange-cloud", category: "purchase")
 
     nonisolated enum ProductID {
         static let monthly  = "jiamin.chen.orange_cloud.pro.monthly"
@@ -70,13 +67,13 @@ final class EntitlementStore {
             products = ProductID.all.compactMap { id in loaded.first { $0.id == id } }
             if products.isEmpty {
                 // 不抛错但结果为空：StoreKit 配置文件解析失败或商品 ID 不匹配
-                Self.logger.error("Product.products(for:) 返回空结果，请求的 ID：\(ProductID.all.joined(separator: ", "), privacy: .public)")
+                AppLog.purchase.error("Product.products(for:) 返回空结果，请求的 ID：\(ProductID.all.joined(separator: ", "))")
                 purchaseError = String(localized: "无法加载商品信息，请稍后再试。")
             } else {
-                Self.logger.info("已加载 \(self.products.count) 个商品")
+                AppLog.purchase.info("已加载 \(self.products.count) 个商品")
             }
         } catch {
-            Self.logger.error("Product.products(for:) 失败：\(String(describing: error), privacy: .public)")
+            AppLog.purchase.error("Product.products(for:) 失败：\(String(describing: error))")
             purchaseError = String(localized: "无法加载商品信息，请稍后再试。")
         }
         #endif
@@ -89,10 +86,13 @@ final class EntitlementStore {
             if case .verified(let transaction) = verification {
                 await transaction.finish()
                 await refreshEntitlements()
+                AppLog.purchase.notice("purchase verified: \(transaction.productID)")
             } else {
+                AppLog.purchase.error("purchase result unverified")
                 purchaseError = String(localized: "购买凭证校验失败，请尝试恢复购买。")
             }
         case .userCancelled, .pending:
+            AppLog.purchase.info("purchase userCancelled/pending")
             break
         @unknown default:
             break
@@ -104,7 +104,9 @@ final class EntitlementStore {
         do {
             try await AppStore.sync()
             await refreshEntitlements()
+            AppLog.purchase.notice("restorePurchases synced, pro=\(entitled)")
         } catch {
+            AppLog.purchase.error("restorePurchases failed: \(error.localizedDescription)")
             purchaseError = error.localizedDescription
         }
         #endif
@@ -128,5 +130,6 @@ final class EntitlementStore {
         }
         hasLifetime = lifetime
         entitled = pro
+        AppLog.purchase.info("entitlements refreshed: pro=\(pro) lifetime=\(lifetime)")
     }
 }

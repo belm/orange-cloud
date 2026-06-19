@@ -519,6 +519,13 @@ struct DashboardView: View {
                     .glassIsland(cornerRadius: OCLayout.chipRadius)
             } else if let usage = viewModel.usage {
                 usageGrid(usage)
+            } else if viewModel.usageLoadFailed {
+                Label("用量加载失败，下拉刷新重试", systemImage: "exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 16)
+                    .glassIsland(cornerRadius: OCLayout.chipRadius)
             } else {
                 usageSkeleton
             }

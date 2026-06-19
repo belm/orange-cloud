@@ -4,6 +4,150 @@
     "": {
       "shouldTranslate": false
     },
+    "用量加载失败，下拉刷新重试": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Couldn't load usage. Pull to refresh to retry." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "使用状況を読み込めませんでした。引っ張って再読み込みしてください。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "用量載入失敗，下拉重新整理重試。" } },
+        "zh-HK": { "stringUnit": { "state": "translated", "value": "用量載入失敗，下拉重新整理重試。" } },
+        "es-MX": { "stringUnit": { "state": "translated", "value": "No se pudo cargar el uso. Desliza para actualizar y reintentar." } },
+        "ko": { "stringUnit": { "state": "translated", "value": "사용량을 불러오지 못했습니다. 아래로 당겨 새로고침하세요." } },
+        "pt-BR": { "stringUnit": { "state": "translated", "value": "Não foi possível carregar o uso. Puxe para atualizar e tentar novamente." } },
+        "pt-PT": { "stringUnit": { "state": "translated", "value": "Não foi possível carregar a utilização. Puxe para atualizar e tentar novamente." } }
+      }
+    },
+    "发送": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Send" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "送信" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "傳送" } },
+        "zh-HK": { "stringUnit": { "state": "translated", "value": "傳送" } },
+        "es-MX": { "stringUnit": { "state": "translated", "value": "Enviar" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "보내기" } },
+        "pt-BR": { "stringUnit": { "state": "translated", "value": "Enviar" } },
+        "pt-PT": { "stringUnit": { "state": "translated", "value": "Enviar" } }
+      }
+    },
+    "发送反馈": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Send Feedback" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "フィードバックを送信" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "傳送意見回饋" } },
+        "zh-HK": { "stringUnit": { "state": "translated", "value": "傳送意見反饋" } },
+        "es-MX": { "stringUnit": { "state": "translated", "value": "Enviar comentarios" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "피드백 보내기" } },
+        "pt-BR": { "stringUnit": { "state": "translated", "value": "Enviar feedback" } },
+        "pt-PT": { "stringUnit": { "state": "translated", "value": "Enviar feedback" } }
+      }
+    },
+    "导出诊断日志": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Export Diagnostic Logs" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "診断ログを書き出す" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "輸出診斷日誌" } },
+        "zh-HK": { "stringUnit": { "state": "translated", "value": "匯出診斷日誌" } },
+        "es-MX": { "stringUnit": { "state": "translated", "value": "Exportar registros de diagnóstico" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "진단 로그 내보내기" } },
+        "pt-BR": { "stringUnit": { "state": "translated", "value": "Exportar registros de diagnóstico" } },
+        "pt-PT": { "stringUnit": { "state": "translated", "value": "Exportar registos de diagnóstico" } }
+      }
+    },
+    "帮助与反馈": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Help & Feedback" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ヘルプとフィードバック" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "說明與意見回饋" } },
+        "zh-HK": { "stringUnit": { "state": "translated", "value": "說明與意見反饋" } },
+        "es-MX": { "stringUnit": { "state": "translated", "value": "Ayuda y comentarios" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "도움말 및 피드백" } },
+        "pt-BR": { "stringUnit": { "state": "translated", "value": "Ajuda e feedback" } },
+        "pt-PT": { "stringUnit": { "state": "translated", "value": "Ajuda e feedback" } }
+      }
+    },
+    "附带诊断日志": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Attach Diagnostic Logs" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "診断ログを添付" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "附上診斷日誌" } },
+        "zh-HK": { "stringUnit": { "state": "translated", "value": "附上診斷日誌" } },
+        "es-MX": { "stringUnit": { "state": "translated", "value": "Adjuntar registros de diagnóstico" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "진단 로그 첨부" } },
+        "pt-BR": { "stringUnit": { "state": "translated", "value": "Anexar registros de diagnóstico" } },
+        "pt-PT": { "stringUnit": { "state": "translated", "value": "Anexar registos de diagnóstico" } }
+      }
+    },
+    "反馈内容": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Feedback" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "フィードバック内容" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "意見內容" } },
+        "zh-HK": { "stringUnit": { "state": "translated", "value": "意見內容" } },
+        "es-MX": { "stringUnit": { "state": "translated", "value": "Comentarios" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "피드백 내용" } },
+        "pt-BR": { "stringUnit": { "state": "translated", "value": "Comentários" } },
+        "pt-PT": { "stringUnit": { "state": "translated", "value": "Comentários" } }
+      }
+    },
+    "描述你遇到的问题，或想反馈的建议……": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Describe the problem you ran into, or any suggestion you'd like to share…" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "発生した問題や、ご提案などをご記入ください……" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "描述你遇到的問題，或想回饋的建議……" } },
+        "zh-HK": { "stringUnit": { "state": "translated", "value": "描述你遇到的問題，或想反映的建議……" } },
+        "es-MX": { "stringUnit": { "state": "translated", "value": "Describe el problema que tuviste o cualquier sugerencia que quieras compartir…" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "발생한 문제나 제안하고 싶은 내용을 적어 주세요…" } },
+        "pt-BR": { "stringUnit": { "state": "translated", "value": "Descreva o problema que encontrou ou alguma sugestão que gostaria de compartilhar…" } },
+        "pt-PT": { "stringUnit": { "state": "translated", "value": "Descreva o problema que encontrou ou alguma sugestão que gostaria de partilhar…" } }
+      }
+    },
+    "（暂无诊断日志）": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "(No diagnostic logs yet)" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "（診断ログはまだありません）" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "（尚無診斷日誌）" } },
+        "zh-HK": { "stringUnit": { "state": "translated", "value": "（尚無診斷日誌）" } },
+        "es-MX": { "stringUnit": { "state": "translated", "value": "(Aún no hay registros de diagnóstico)" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "(아직 진단 로그가 없습니다)" } },
+        "pt-BR": { "stringUnit": { "state": "translated", "value": "(Ainda não há registros de diagnóstico)" } },
+        "pt-PT": { "stringUnit": { "state": "translated", "value": "(Ainda não há registos de diagnóstico)" } }
+      }
+    },
+    "Orange Cloud 反馈": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Orange Cloud Feedback" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Orange Cloud フィードバック" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Orange Cloud 意見回饋" } },
+        "zh-HK": { "stringUnit": { "state": "translated", "value": "Orange Cloud 意見反饋" } },
+        "es-MX": { "stringUnit": { "state": "translated", "value": "Comentarios de Orange Cloud" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Orange Cloud 피드백" } },
+        "pt-BR": { "stringUnit": { "state": "translated", "value": "Feedback do Orange Cloud" } },
+        "pt-PT": { "stringUnit": { "state": "translated", "value": "Feedback do Orange Cloud" } }
+      }
+    },
+    "反馈通过邮件发送给我们，可附带本地诊断日志（不含你的令牌或密钥）便于排查问题。": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Feedback is sent to us by email and can include local diagnostic logs (never your tokens or keys) to help us troubleshoot." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "フィードバックはメールで送信されます。問題の調査に役立つよう、ローカルの診断ログ（トークンやキーは含まれません）を添付できます。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "意見回饋會以電子郵件傳送給我們，可附上本機診斷日誌（不含你的權杖或密鑰）以利排查問題。" } },
+        "zh-HK": { "stringUnit": { "state": "translated", "value": "意見反饋會以電郵傳送給我們，可附上本機診斷日誌（不含你的權杖或密鑰）以便排查問題。" } },
+        "es-MX": { "stringUnit": { "state": "translated", "value": "Los comentarios se nos envían por correo y pueden incluir registros de diagnóstico locales (nunca tus tokens ni claves) para ayudarnos a investigar el problema." } },
+        "ko": { "stringUnit": { "state": "translated", "value": "피드백은 이메일로 전송되며, 문제 해결에 도움이 되도록 로컬 진단 로그(토큰이나 키는 포함되지 않음)를 첨부할 수 있습니다." } },
+        "pt-BR": { "stringUnit": { "state": "translated", "value": "O feedback é enviado para nós por e-mail e pode incluir registros de diagnóstico locais (nunca seus tokens ou chaves) para ajudar na investigação." } },
+        "pt-PT": { "stringUnit": { "state": "translated", "value": "O feedback é enviado para nós por e-mail e pode incluir registos de diagnóstico locais (nunca os seus tokens ou chaves) para ajudar na análise." } }
+      }
+    },
+    "日志只含 App 运行记录（请求路径、状态码、错误、登录态变化等），不含你的 Cloudflare 令牌、密钥值或账号密码。": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "The logs only contain app activity (request paths, status codes, errors, login-state changes, and so on), never your Cloudflare tokens, key values, or account passwords." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ログにはAppの動作記録（リクエストパス、ステータスコード、エラー、ログイン状態の変化など）のみが含まれ、Cloudflareのトークンやキーの値、アカウントのパスワードは含まれません。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "日誌僅含 App 運行記錄（請求路徑、狀態碼、錯誤、登入狀態變化等），不含你的 Cloudflare 權杖、密鑰值或帳號密碼。" } },
+        "zh-HK": { "stringUnit": { "state": "translated", "value": "日誌只含 App 運行記錄（請求路徑、狀態碼、錯誤、登入狀態變化等），不含你的 Cloudflare 權杖、密鑰值或帳戶密碼。" } },
+        "es-MX": { "stringUnit": { "state": "translated", "value": "Los registros solo contienen la actividad de la app (rutas de solicitud, códigos de estado, errores, cambios de estado de sesión, etc.) y nunca tus tokens de Cloudflare, valores de claves ni contraseñas de cuenta." } },
+        "ko": { "stringUnit": { "state": "translated", "value": "로그에는 앱 동작 기록(요청 경로, 상태 코드, 오류, 로그인 상태 변경 등)만 포함되며, Cloudflare 토큰이나 키 값, 계정 비밀번호는 포함되지 않습니다." } },
+        "pt-BR": { "stringUnit": { "state": "translated", "value": "Os registros contêm apenas a atividade do app (caminhos de requisição, códigos de status, erros, mudanças de estado de login etc.) e nunca seus tokens da Cloudflare, valores de chaves ou senhas de conta." } },
+        "pt-PT": { "stringUnit": { "state": "translated", "value": "Os registos contêm apenas a atividade da app (caminhos de pedido, códigos de estado, erros, mudanças de estado de sessão, etc.) e nunca os seus tokens da Cloudflare, valores de chaves ou palavras-passe da conta." } }
+      }
+    },
     " · 只读授权": {
       "localizations": {
         "en": {

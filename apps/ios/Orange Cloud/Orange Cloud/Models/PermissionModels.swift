@@ -145,8 +145,10 @@ extension FeaturePermission {
             title: String(localized: "流量分析"),
             description: String(localized: "查看账号与域名的流量和安全分析"),
             icon: "chart.bar",
-            // 账号级 + Zone 级（GraphQL Analytics API 查 Zone 流量需要 analytics.read）
-            readScopes: ["account-analytics.read", "analytics.read"],
+            // Zone 流量走 analytics.read；账号级用量（workersInvocationsAdaptive 等 adaptive 数据集）
+            // 现需 workers-observability.read——只有 account-analytics.read 会被 GraphQL 拒
+            // 「not authorized for that account」（Cloudflare 把账号级 Workers 分析挪到了 Observability 权限下）。
+            readScopes: ["account-analytics.read", "analytics.read", "workers-observability.read"],
             editScopes: [],
             isRequired: false
         ),

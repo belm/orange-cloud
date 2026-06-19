@@ -23,14 +23,17 @@ enum BackgroundRefresh {
             }
             let work = Task { @MainActor in
                 schedule()   // 链式排下一次
+                AppLog.background.notice("BGAppRefresh fired, loggedIn=\(authManager.isLoggedIn)")
                 if authManager.isLoggedIn {
                     _ = try? await authManager.refreshAccessToken()
                     // 顺带做通知检测（Zone 状态变化 / Worker 错误）
                     await AppNotifications.runBackgroundChecks(authManager: authManager)
                 }
                 refreshTask.setTaskCompleted(success: true)
+                AppLog.background.info("BGAppRefresh completed")
             }
             refreshTask.expirationHandler = {
+                AppLog.background.error("BGAppRefresh expired (system cut off)")
                 work.cancel()
                 refreshTask.setTaskCompleted(success: false)
             }
@@ -41,6 +44,11 @@ enum BackgroundRefresh {
     static func schedule() {
         let request = BGAppRefreshTaskRequest(identifier: taskIdentifier)
         request.earliestBeginDate = Date(timeIntervalSinceNow: 4 * 3600)   // 至少 4 小时后
-        try? BGTaskScheduler.shared.submit(request)
+        do {
+            try BGTaskScheduler.shared.submit(request)
+            AppLog.background.info("scheduled BGAppRefresh (earliest +4h)")
+        } catch {
+            AppLog.background.error("schedule BGAppRefresh failed: \(error.localizedDescription)")
+        }
     }
 }

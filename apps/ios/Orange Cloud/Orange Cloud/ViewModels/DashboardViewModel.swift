@@ -28,11 +28,20 @@ final class DashboardViewModel {
     private(set) var isLoadingAssets = false
     /// 最近一次资产刷新是否失败（核心即 Zone 列表拉取失败）——驱动 Dashboard 顶部红色提示
     private(set) var loadFailed = false
+    /// 用量加载完成但账号级分析全部失败（区分「仍在加载」与「加载失败」，避免永远卡骨架）
+    private(set) var usageLoadFailed = false
 
     private var loadedZoneIds: Set<String> = []
     private var assetsLoadedForAccount: String?
     private var usageLoadedForAccount: String?
     private var billingAttemptedForAccount: String?
+
+    // 加载跑在 VM 持有的非结构化 Task：.task(id:)/.refreshable 的手势或 body 重建会取消视图任务，
+    // 若请求直接 await 在视图任务里，URLSession 把取消转成 .cancelled → try? 吞成 nil → 用量/资产
+    // 永远空白卡骨架态。放进独立 Task 后手势取消波及不到它，加载照常跑完写状态。详见同名 bug 修复。
+    private var assetsTask: Task<Void, Never>?
+    private var usageTask: Task<Void, Never>?
+    private var trafficTask: Task<Void, Never>?
     private let analyticsService: AnalyticsService
     private let accountService: AccountService
     private let r2Service: R2Service
@@ -71,7 +80,30 @@ final class DashboardViewModel {
         force: Bool = false
     ) async {
         guard force || assetsLoadedForAccount != accountId else { return }
-        guard !isLoadingAssets else { return }
+        // 已有加载在跑：等它结束即可，不另起重复请求（手势取消波及不到这个独立 Task）
+        if let assetsTask {
+            await assetsTask.value
+            return
+        }
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.performLoadAssets(
+                accountId: accountId, accountName: accountName,
+                canReadWorkers: canReadWorkers, canReadDNS: canReadDNS, context: context
+            )
+        }
+        assetsTask = task
+        defer { assetsTask = nil }
+        await task.value
+    }
+
+    private func performLoadAssets(
+        accountId: String,
+        accountName: String,
+        canReadWorkers: Bool,
+        canReadDNS: Bool,
+        context: ModelContext
+    ) async {
         isLoadingAssets = true
         loadFailed = false
         defer { isLoadingAssets = false }
@@ -117,7 +149,21 @@ final class DashboardViewModel {
     /// 周期起点优先级：订阅接口（best-effort）→ 手动账单日（fallbackPeriodStart）→ 自然月。
     func loadUsage(accountId: String, fallbackPeriodStart: Date? = nil, force: Bool = false) async {
         guard force || usageLoadedForAccount != accountId else { return }
+        if let usageTask {
+            await usageTask.value
+            return
+        }
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.performLoadUsage(accountId: accountId, fallbackPeriodStart: fallbackPeriodStart, force: force)
+        }
+        usageTask = task
+        defer { usageTask = nil }
+        await task.value
+    }
 
+    private func performLoadUsage(accountId: String, fallbackPeriodStart: Date?, force: Bool) async {
+        usageLoadFailed = false   // 重试期间先回骨架态，加载完再据结果定
         if force || billingAttemptedForAccount != accountId {
             billingAttemptedForAccount = accountId
             billing = (try? await accountService.listSubscriptions(accountId: accountId))
@@ -135,16 +181,31 @@ final class DashboardViewModel {
         }
         periodStart = periodStart ?? fallbackPeriodStart
 
-        // 加载失败不打扰 Dashboard（用量区显示占位）
-        guard var usage = try? await analyticsService.accountUsage(accountId: accountId, periodStart: periodStart) else {
-            return
+        // Workers 用量（账号级 GraphQL）。注意 HTTP 200 不代表 GraphQL 成功——Cloudflare 即使
+        // 数据集报错也回 200，错误在响应体 errors 里（CFAPIClient.graphQL 会记 "graphQL error"）。
+        // 失败不再整段放弃：继续拉 R2/D1/KV，能显示多少显示多少；全部失败才标记失败态、不卡骨架。
+        let workers = try? await analyticsService.accountUsage(accountId: accountId, periodStart: periodStart)
+        var usage = workers ?? AccountUsage(
+            workersRequestsToday: 0, workersRequestsMonth: 0, workersErrorsMonth: 0,
+            cpuP50Us: nil, cpuP99Us: nil, cpuTimeMonthUs: nil, cpuTimeTodayUs: nil
+        )
+        var anyData = workers != nil
+
+        // R2 用量（操作分类 + 存储）独立合并
+        if let r2 = try? await analyticsService.r2Usage(accountId: accountId, periodStart: periodStart) {
+            usage.r2ClassAMonth = r2.classA
+            usage.r2ClassBMonth = r2.classB
+            usage.r2StorageBytes = r2.storageBytes
+            usage.r2ObjectCount = r2.objectCount
+            anyData = true
         }
         // 存储改用 REST 指标（与 Dashboard 同源、免费额度只计 Standard），失败保留 GraphQL 值
         if let metrics = try? await r2Service.accountMetrics(accountId: accountId) {
             usage.r2StorageBytes = metrics.standardBytes
             usage.r2ObjectCount = metrics.standardObjects
+            anyData = true
         }
-        // 存储桶数（指标格用，失败保持 nil）
+        // 存储桶数（指标格用，失败保持 nil；不计入 anyData——它是统计格不是用量）
         if let buckets = try? await r2Service.listBuckets(accountId: accountId) {
             r2BucketCount = buckets.count
         }
@@ -154,16 +215,35 @@ final class DashboardViewModel {
             usage.cpuTimeTodayUs = cpu.todayUs
         }
         // D1 行读/写（独立查询）+ 存储（REST 数据库列表 fileSize 求和，需 d1.read）
-        usage.d1Usage = try? await analyticsService.d1Usage(accountId: accountId, periodStart: periodStart)
+        if let d1 = try? await analyticsService.d1Usage(accountId: accountId, periodStart: periodStart) {
+            usage.d1Usage = d1
+            anyData = true
+        }
         if let databases = try? await d1Service.listDatabases(accountId: accountId) {
             usage.d1StorageBytes = databases.reduce(0) { $0 + ($1.fileSize ?? 0) }
             d1DatabaseCount = databases.count
+            anyData = true
         }
         // KV 读/写 + 存储（独立查询）
-        usage.kvUsage = try? await analyticsService.kvUsage(accountId: accountId, periodStart: periodStart)
-        usage.kvStorageBytes = try? await analyticsService.kvStorageBytes(accountId: accountId)
-        self.usage = usage
-        usageLoadedForAccount = accountId
+        if let kv = try? await analyticsService.kvUsage(accountId: accountId, periodStart: periodStart) {
+            usage.kvUsage = kv
+            anyData = true
+        }
+        if let kvStorage = try? await analyticsService.kvStorageBytes(accountId: accountId) {
+            usage.kvStorageBytes = kvStorage
+            anyData = true
+        }
+
+        if anyData {
+            self.usage = usage
+            usageLoadFailed = false
+            usageLoadedForAccount = accountId
+        } else {
+            // 账号级分析全部失败（多为 GraphQL 数据集权限问题，见网络日志 "graphQL error"）。
+            // 标记失败态让 UI 显示重试而非永远骨架；不写 usageLoadedForAccount，下次进入会重试。
+            usageLoadFailed = true
+            AppLog.network.error("account usage load produced no data (all account-level datasets failed)")
+        }
     }
 
     /// 拉取各 Zone 的 24h 流量。zone 集合没变化时跳过（Tab 切换不重复请求）。
@@ -171,8 +251,21 @@ final class DashboardViewModel {
     func loadTraffic(zones: [(id: String, name: String)], force: Bool = false) async {
         let idSet = Set(zones.map(\.id))
         guard !idSet.isEmpty else { return }
-        guard force || idSet != loadedZoneIds, !isLoading else { return }
+        guard force || idSet != loadedZoneIds else { return }
+        if let trafficTask {
+            await trafficTask.value
+            return
+        }
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.performLoadTraffic(zones: zones, idSet: idSet)
+        }
+        trafficTask = task
+        defer { trafficTask = nil }
+        await task.value
+    }
 
+    private func performLoadTraffic(zones: [(id: String, name: String)], idSet: Set<String>) async {
         isLoading = true
         // 流量数据加载失败不打扰 Dashboard（卡片自动隐藏图表）
         if let traffic = try? await analyticsService.trafficByZone24h(zoneIds: zones.map(\.id)) {

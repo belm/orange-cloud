@@ -19,6 +19,8 @@ struct SettingsView: View {
     @State private var showAddAccount = false
     @State private var showProPaywall = false
     @State private var showAddAccountPaywall = false
+    @State private var showFeedback = false
+    @State private var logShareItems: [Any]?
     @State private var iCloudSync = UserDefaults.standard.bool(forKey: AuthManager.iCloudSyncKey)
 
     /// 「今日」用量的日界口径（App Group，与 Widget 共享），默认 UTC
@@ -195,6 +197,41 @@ struct SettingsView: View {
                 }
                 .glassRow()
 
+                // ── 帮助与反馈 ──
+                Section {
+                    Button {
+                        showFeedback = true
+                    } label: {
+                        HStack(spacing: 12) {
+                            TintIcon(systemImage: "envelope", color: .ocOrange)
+                            Text("发送反馈")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    Button {
+                        exportLogs()
+                    } label: {
+                        HStack(spacing: 12) {
+                            TintIcon(systemImage: "doc.text.magnifyingglass", color: .gray)
+                            Text("导出诊断日志")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                } header: {
+                    Text("帮助与反馈")
+                } footer: {
+                    Text("反馈通过邮件发送给我们，可附带本地诊断日志（不含你的令牌或密钥）便于排查问题。")
+                }
+                .glassRow()
+
                 // ── 关于 ──
                 Section {
                     HStack(spacing: 12) {
@@ -219,8 +256,8 @@ struct SettingsView: View {
                         }
                     }
                     aboutLink("GitHub", icon: "chevron.left.forwardslash.chevron.right", url: "https://github.com/chen2he/orange-cloud")
-                    aboutLink("隐私政策", icon: "doc.text", url: "https://orange-cloud.chatiro.app/privacy")
-                    aboutLink("使用条款", icon: "doc.plaintext", url: "https://orange-cloud.chatiro.app/terms")
+                    aboutLink(String(localized: "隐私政策"), icon: "doc.text", url: "https://orange-cloud.chatiro.app/privacy")
+                    aboutLink(String(localized: "使用条款"), icon: "doc.plaintext", url: "https://orange-cloud.chatiro.app/terms")
                 } header: {
                     Text("关于")
                 } footer: {
@@ -244,7 +281,28 @@ struct SettingsView: View {
             .sheet(isPresented: $showAddAccountPaywall) {
                 PaywallView(feature: .multiAccount)
             }
+            .sheet(isPresented: $showFeedback) {
+                FeedbackView()
+            }
+            .sheet(isPresented: logShareBinding) {
+                if let logShareItems {
+                    ActivityView(items: logShareItems)
+                }
+            }
         }
+    }
+
+    /// 导出诊断日志：写到临时文件并拉起系统分享
+    private func exportLogs() {
+        if let url = LogFileStore.shared.exportedFileURL() {
+            logShareItems = [url]
+        } else {
+            logShareItems = [String(localized: "（暂无诊断日志）")]
+        }
+    }
+
+    private var logShareBinding: Binding<Bool> {
+        Binding(get: { logShareItems != nil }, set: { if !$0 { logShareItems = nil } })
     }
 
     // MARK: - 身份行

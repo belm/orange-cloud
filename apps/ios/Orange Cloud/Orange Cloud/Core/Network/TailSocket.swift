@@ -35,6 +35,7 @@ actor TailSocket {
         let task = self.task
 
         task.resume()
+        AppLog.websocket.info("tail connecting")
 
         receiveTask = Task {
             do {
@@ -57,6 +58,9 @@ actor TailSocket {
                 }
                 continuation.finish()
             } catch {
+                if !Task.isCancelled {
+                    AppLog.websocket.error("tail receive error: \(error.localizedDescription)")
+                }
                 continuation.finish(throwing: Task.isCancelled ? nil : error)
             }
         }
@@ -81,6 +85,7 @@ actor TailSocket {
     func close() {
         guard !closed else { return }
         closed = true
+        AppLog.websocket.info("tail closed")
         receiveTask?.cancel()
         pingTask?.cancel()
         task.cancel(with: .goingAway, reason: nil)
