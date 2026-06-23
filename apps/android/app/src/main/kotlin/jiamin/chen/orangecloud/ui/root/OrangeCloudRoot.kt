@@ -197,20 +197,20 @@ private fun MainScaffold() {
     val onAddAccount = {
         if (isPro) loginViewModel.login(freshLogin = true) else navController.navigate(Dest.PAYWALL)
     }
+    fun navigateTop(dest: TopDestination) {
+        navController.navigate(Dest.startRoute(dest)) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
 
     NavigationSuiteScaffold(
         navigationSuiteItems = {
             TopDestination.entries.forEach { dest ->
                 item(
                     selected = selectedTop == dest,
-                    onClick = {
-                        navController.navigate(Dest.startRoute(dest)) {
-                            // 切顶级标签：弹回起点并保存/恢复各自子栈状态
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
+                    onClick = { navigateTop(dest) },
                     icon = { Icon(dest.icon, contentDescription = null) },
                     label = { Text(stringResource(dest.labelRes)) },
                 )
@@ -221,13 +221,9 @@ private fun MainScaffold() {
             composable(Dest.DASHBOARD) {
                 DashboardScreen(
                     onOpenTunnels = { navController.navigate(Dest.TUNNELS) },
-                    onOpenZones = {
-                        navController.navigate(Dest.ZONES) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
+                    onOpenZones = { navigateTop(TopDestination.Zones) },
+                    onOpenWorkers = { navigateTop(TopDestination.Workers) },
+                    onOpenStorage = { navigateTop(TopDestination.Storage) },
                     onOpenZone = { zone -> navController.navigate(Dest.zoneDetail(zone.id, zone.name)) },
                     onAddAccount = onAddAccount,
                 )

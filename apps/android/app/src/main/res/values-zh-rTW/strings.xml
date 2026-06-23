@@ -380,10 +380,8 @@
     <string name="paywall_feat_security">WAF 規則與 Tunnel</string>
     <string name="paywall_feat_analytics">7 天 / 30 天分析</string>
     <string name="paywall_unlock">解鎖 Pro</string>
-    <string name="paywall_yearly">年付訂閱</string>
-    <string name="paywall_monthly">月付訂閱</string>
     <string name="paywall_lifetime">一次性買斷</string>
-    <string name="paywall_note">訂閱透過 Google Play 計費，可隨時取消。</string>
+    <string name="paywall_note">本機解鎖，不會發起 Google Play 付款。</string>
 
 
     <!-- 新增網域 -->

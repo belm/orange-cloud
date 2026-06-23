@@ -381,10 +381,8 @@
     <string name="paywall_feat_security">Regras WAF e Tunnel</string>
     <string name="paywall_feat_analytics">Análises de 7 e 30 dias</string>
     <string name="paywall_unlock">Desbloquear Pro</string>
-    <string name="paywall_yearly">Anual</string>
-    <string name="paywall_monthly">Mensal</string>
     <string name="paywall_lifetime">Pagamento único</string>
-    <string name="paywall_note">Cobrado pelo Google Play; cancele quando quiser.</string>
+    <string name="paywall_note">Desbloqueio local. Nenhum pagamento do Google Play é iniciado.</string>
 
 
     <!-- Adicionar domínio -->

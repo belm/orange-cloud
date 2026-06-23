@@ -404,10 +404,8 @@
     <string name="paywall_feat_security">WAF rules &amp; Tunnel</string>
     <string name="paywall_feat_analytics">7-day / 30-day analytics</string>
     <string name="paywall_unlock">Unlock Pro</string>
-    <string name="paywall_yearly">Yearly</string>
-    <string name="paywall_monthly">Monthly</string>
     <string name="paywall_lifetime">Lifetime</string>
-    <string name="paywall_note">Billed via Google Play, cancel anytime.</string>
+    <string name="paywall_note">Local unlock. No Google Play payment is started.</string>
 
 
     <!-- Add domain -->

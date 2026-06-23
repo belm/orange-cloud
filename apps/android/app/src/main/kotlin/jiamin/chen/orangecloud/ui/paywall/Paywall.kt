@@ -19,7 +19,6 @@ import androidx.compose.material.icons.outlined.WorkspacePremium
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -87,23 +86,9 @@ fun PaywallScreen(gateViewModel: ProGateViewModel = hiltViewModel()) {
                 R.string.paywall_feat_analytics,
             ).forEach { FeatureLine(stringResource(it), onSky) }
             Spacer(Modifier.size(12.dp))
-            // 价格从 Play ProductDetails 动态取；oss 风味网关为空操作（isPro 恒真，本屏不展示）。
             Button(
-                onClick = { activity?.let { gateViewModel.purchase(it, jiamin.chen.orangecloud.core.purchase.BillingGateway.PLAN_YEARLY) } },
-                colors = ButtonDefaults.buttonColors(containerColor = OcOrange, contentColor = Color.White),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(R.string.paywall_yearly))
-            }
-            Button(
-                onClick = { activity?.let { gateViewModel.purchase(it, jiamin.chen.orangecloud.core.purchase.BillingGateway.PLAN_MONTHLY) } },
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(R.string.paywall_monthly))
-            }
-            androidx.compose.material3.OutlinedButton(
                 onClick = { activity?.let { gateViewModel.purchase(it, jiamin.chen.orangecloud.core.purchase.BillingGateway.PLAN_LIFETIME) } },
+                colors = ButtonDefaults.buttonColors(containerColor = OcOrange, contentColor = Color.White),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(stringResource(R.string.paywall_lifetime))

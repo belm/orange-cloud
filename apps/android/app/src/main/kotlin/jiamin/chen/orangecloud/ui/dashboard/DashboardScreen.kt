@@ -62,6 +62,8 @@ import jiamin.chen.orangecloud.data.model.Zone
 fun DashboardScreen(
     onOpenTunnels: () -> Unit,
     onOpenZones: () -> Unit,
+    onOpenWorkers: () -> Unit,
+    onOpenStorage: () -> Unit,
     onOpenZone: (Zone) -> Unit,
     onAddAccount: () -> Unit,
     viewModel: DashboardViewModel = hiltViewModel(),
@@ -122,12 +124,41 @@ fun DashboardScreen(
                 // 统计磁贴 2×2
                 Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        StatTile(Icons.Outlined.Language, state.zoneCount, stringResource(R.string.nav_zones), stringResource(R.string.dash_sub_zones), primary = true, modifier = Modifier.weight(1f))
-                        StatTile(Icons.Outlined.Bolt, state.workerCount, stringResource(R.string.nav_workers), stringResource(R.string.dash_sub_workers), modifier = Modifier.weight(1f))
+                        StatTile(
+                            Icons.Outlined.Language,
+                            state.zoneCount,
+                            stringResource(R.string.nav_zones),
+                            stringResource(R.string.dash_sub_zones),
+                            primary = true,
+                            modifier = Modifier.weight(1f),
+                            onClick = onOpenZones,
+                        )
+                        StatTile(
+                            Icons.Outlined.Bolt,
+                            state.workerCount,
+                            stringResource(R.string.nav_workers),
+                            stringResource(R.string.dash_sub_workers),
+                            modifier = Modifier.weight(1f),
+                            onClick = onOpenWorkers,
+                        )
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        StatTile(Icons.Outlined.Cloud, state.bucketCount, stringResource(R.string.dash_buckets), stringResource(R.string.dash_sub_buckets), modifier = Modifier.weight(1f))
-                        StatTile(Icons.Outlined.BarChart, state.requestsToday, stringResource(R.string.dash_requests), stringResource(R.string.dash_sub_requests), modifier = Modifier.weight(1f))
+                        StatTile(
+                            Icons.Outlined.Cloud,
+                            state.bucketCount,
+                            stringResource(R.string.dash_buckets),
+                            stringResource(R.string.dash_sub_buckets),
+                            modifier = Modifier.weight(1f),
+                            onClick = onOpenStorage,
+                        )
+                        StatTile(
+                            Icons.Outlined.BarChart,
+                            state.requestsToday,
+                            stringResource(R.string.dash_requests),
+                            stringResource(R.string.dash_sub_requests),
+                            modifier = Modifier.weight(1f),
+                            onClick = onOpenZones,
+                        )
                     }
                 }
 

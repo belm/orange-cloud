@@ -1,6 +1,7 @@
 package jiamin.chen.orangecloud.core.design
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -120,6 +121,7 @@ fun StatTile(
     sub: String,
     primary: Boolean = false,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
 ) {
     val cs = MaterialTheme.colorScheme
     val bg = if (primary) cs.primaryContainer else cs.surfaceContainerHigh
@@ -129,6 +131,7 @@ fun StatTile(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(28.dp))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .background(bg)
             .heightIn(min = 116.dp)
             .padding(16.dp),

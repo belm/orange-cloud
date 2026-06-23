@@ -93,6 +93,15 @@ android {
         buildConfig = true
     }
 
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a")
+            isUniversalApk = false
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -151,7 +160,6 @@ dependencies {
 
     // 平台特色
     implementation(libs.androidx.browser)        // Custom Tabs（OAuth）
-    "playImplementation"(libs.billing.ktx)        // Play Billing 仅 play 风味
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.coil.compose)
 

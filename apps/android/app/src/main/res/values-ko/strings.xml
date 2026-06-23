@@ -380,10 +380,8 @@
     <string name="paywall_feat_security">WAF 규칙 및 Tunnel</string>
     <string name="paywall_feat_analytics">7일 / 30일 분석</string>
     <string name="paywall_unlock">Pro 잠금 해제</string>
-    <string name="paywall_yearly">연간</string>
-    <string name="paywall_monthly">월간</string>
     <string name="paywall_lifetime">평생 이용권</string>
-    <string name="paywall_note">Google Play를 통해 청구되며 언제든 취소할 수 있습니다.</string>
+    <string name="paywall_note">로컬 잠금 해제입니다. Google Play 결제는 시작되지 않습니다.</string>
 
 
     <!-- 도메인 추가 -->

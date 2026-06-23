@@ -380,10 +380,8 @@
     <string name="paywall_feat_security">WAF ルールと Tunnel</string>
     <string name="paywall_feat_analytics">7日 / 30日分析</string>
     <string name="paywall_unlock">Pro をアンロック</string>
-    <string name="paywall_yearly">年額</string>
-    <string name="paywall_monthly">月額</string>
     <string name="paywall_lifetime">買い切り</string>
-    <string name="paywall_note">Google Play で課金。いつでもキャンセルできます。</string>
+    <string name="paywall_note">ローカルでアンロックします。Google Play の支払いは開始されません。</string>
 
 
     <!-- ドメインを追加 -->

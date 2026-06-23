@@ -418,10 +418,8 @@
     <string name="paywall_feat_security">WAF 规则与 Tunnel</string>
     <string name="paywall_feat_analytics">7 天 / 30 天分析</string>
     <string name="paywall_unlock">解锁 Pro</string>
-    <string name="paywall_yearly">年付订阅</string>
-    <string name="paywall_monthly">月付订阅</string>
     <string name="paywall_lifetime">一次性买断</string>
-    <string name="paywall_note">订阅按 Google Play 计费，可随时取消。</string>
+    <string name="paywall_note">本地解锁，不会发起 Google Play 付款。</string>
 
     <!-- 添加域名（新建 Zone） -->
     <string name="addzone_title">添加域名</string>
