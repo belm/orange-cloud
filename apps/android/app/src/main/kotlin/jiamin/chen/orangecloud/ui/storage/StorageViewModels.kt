@@ -11,9 +11,11 @@ import jiamin.chen.orangecloud.data.model.D1QueryResult
 import jiamin.chen.orangecloud.data.model.KVKey
 import jiamin.chen.orangecloud.data.model.KVNamespace
 import jiamin.chen.orangecloud.data.model.R2Bucket
+import jiamin.chen.orangecloud.data.model.R2BucketUsage
 import jiamin.chen.orangecloud.data.model.R2Object
 import jiamin.chen.orangecloud.data.model.D1Column
 import jiamin.chen.orangecloud.data.repository.AccountStore
+import jiamin.chen.orangecloud.data.repository.AnalyticsRepository
 import jiamin.chen.orangecloud.data.repository.StorageRepository
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -32,13 +34,48 @@ import javax.inject.Inject
 
 // MARK: - 简单列表（存储桶 / 数据库 / 命名空间）
 
+data class R2BucketUsageUiState(
+    val usageByBucket: Map<String, R2BucketUsage> = emptyMap(),
+    val isLoading: Boolean = false,
+    val hasError: Boolean = false,
+)
+
 @HiltViewModel
 class R2BucketListViewModel @Inject constructor(
     accountStore: AccountStore,
     private val storageRepository: StorageRepository,
+    private val analyticsRepository: AnalyticsRepository,
     authRepository: AuthRepository,
 ) : StorageListViewModel<R2Bucket>(accountStore, authRepository.hasScope(Scopes.R2_READ)) {
-    override suspend fun fetch(accountId: String) = storageRepository.listBuckets(accountId)
+    private val canLoadUsage = authRepository.hasScope(Scopes.ACCOUNT_ANALYTICS_READ)
+
+    private val _usageState = MutableStateFlow(R2BucketUsageUiState())
+    val usageState: StateFlow<R2BucketUsageUiState> = _usageState.asStateFlow()
+
+    override suspend fun fetch(accountId: String): List<R2Bucket> = coroutineScope {
+        _usageState.update { R2BucketUsageUiState(isLoading = canLoadUsage) }
+        val buckets = async { storageRepository.listBuckets(accountId) }
+        val usage = if (canLoadUsage) {
+            async { runCatching { analyticsRepository.r2UsageByBucket(accountId) } }
+        } else {
+            null
+        }
+        try {
+            val result = buckets.await()
+            usage?.await()?.fold(
+                onSuccess = { usageByBucket ->
+                    _usageState.update { it.copy(usageByBucket = usageByBucket, isLoading = false, hasError = false) }
+                },
+                onFailure = {
+                    _usageState.update { it.copy(isLoading = false, hasError = true) }
+                },
+            ) ?: _usageState.update { it.copy(isLoading = false) }
+            result
+        } finally {
+            _usageState.update { it.copy(isLoading = false) }
+        }
+    }
+
     init { load() }
 }
 

@@ -1,6 +1,7 @@
 package jiamin.chen.orangecloud.core.design
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -124,16 +125,18 @@ fun StatTile(
     onClick: (() -> Unit)? = null,
 ) {
     val cs = MaterialTheme.colorScheme
-    val bg = if (primary) cs.primaryContainer else cs.surfaceContainerHigh
+    val bg = if (primary) cs.primaryContainer.copy(alpha = 0.82f) else cs.surfaceContainerHigh.copy(alpha = 0.76f)
     val iconTint = if (primary) cs.onPrimaryContainer else cs.primary
     val iconBg = if (primary) cs.primary.copy(alpha = 0.22f) else OcOrange.copy(alpha = 0.18f)
     val valueColor = if (primary) cs.onPrimaryContainer else cs.primary
+    val shape = RoundedCornerShape(24.dp)
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(28.dp))
+            .clip(shape)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .background(bg)
-            .heightIn(min = 116.dp)
+            .background(Brush.linearGradient(listOf(bg, bg.copy(alpha = 0.62f))))
+            .border(1.dp, cs.outlineVariant.copy(alpha = 0.46f), shape)
+            .heightIn(min = 112.dp)
             .padding(16.dp),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

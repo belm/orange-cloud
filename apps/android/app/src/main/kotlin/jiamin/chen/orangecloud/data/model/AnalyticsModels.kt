@@ -201,6 +201,69 @@ data class WorkerSeriesPoint(
     val errors: Long,
 )
 
+// MARK: - R2 用量（r2OperationsAdaptiveGroups / r2StorageAdaptiveGroups）
+
+@Serializable
+data class R2UsageVariables(
+    val accountTag: String,
+    val monthStart: String,
+    val todayStart: String,
+    val now: String,
+)
+
+@Serializable
+data class R2UsageData(val viewer: R2UsageViewer)
+
+@Serializable
+data class R2UsageViewer(val accounts: List<R2UsageNode> = emptyList())
+
+@Serializable
+data class R2UsageNode(
+    val r2Ops: List<R2OpsGroup>? = null,
+    val r2Storage: List<R2StorageGroup>? = null,
+)
+
+@Serializable
+data class R2OpsGroup(
+    val dimensions: R2OpsDimensions? = null,
+    val sum: R2OpsSum? = null,
+)
+
+@Serializable
+data class R2OpsDimensions(
+    val actionType: String? = null,
+    val bucketName: String? = null,
+)
+
+@Serializable
+data class R2OpsSum(val requests: Long? = null)
+
+@Serializable
+data class R2StorageGroup(
+    val dimensions: R2StorageDimensions? = null,
+    val max: R2StorageMax? = null,
+)
+
+@Serializable
+data class R2StorageDimensions(val bucketName: String? = null)
+
+@Serializable
+data class R2StorageMax(
+    val payloadSize: Long? = null,
+    val metadataSize: Long? = null,
+    val objectCount: Long? = null,
+)
+
+data class R2BucketUsage(
+    val bucketName: String,
+    val classARequests: Long = 0,
+    val classBRequests: Long = 0,
+    val storageBytes: Long = 0,
+    val objectCount: Long = 0,
+) {
+    val totalRequests: Long get() = classARequests + classBRequests
+}
+
 /** GraphQL 查询模板（对应 iOS AnalyticsQueries）。 */
 object AnalyticsQueries {
     fun workerSummary(): String = """
@@ -277,6 +340,29 @@ object AnalyticsQueries {
                 dimensions { date }
                 sum  { requests bytes threats pageViews cachedRequests cachedBytes }
                 uniq { uniques }
+              }
+            }
+          }
+        }
+    """.trimIndent()
+
+    fun r2Usage(): String = """
+        query (${'$'}accountTag: string!, ${'$'}monthStart: Time!, ${'$'}todayStart: Time!, ${'$'}now: Time!) {
+          viewer {
+            accounts(filter: { accountTag: ${'$'}accountTag }) {
+              r2Ops: r2OperationsAdaptiveGroups(
+                limit: 10000,
+                filter: { datetime_geq: ${'$'}monthStart, datetime_leq: ${'$'}now }
+              ) {
+                dimensions { actionType bucketName }
+                sum { requests }
+              }
+              r2Storage: r2StorageAdaptiveGroups(
+                limit: 1000,
+                filter: { datetime_geq: ${'$'}todayStart, datetime_leq: ${'$'}now }
+              ) {
+                dimensions { bucketName }
+                max { payloadSize metadataSize objectCount }
               }
             }
           }

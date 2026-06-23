@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,16 +18,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.QueryStats
 import androidx.compose.material.icons.outlined.Upload
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -52,6 +57,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -70,6 +76,8 @@ import jiamin.chen.orangecloud.core.design.SkyHeader
 import jiamin.chen.orangecloud.core.design.onSky
 import jiamin.chen.orangecloud.core.design.rememberSkyPhase
 import jiamin.chen.orangecloud.core.design.theme.OcOrange
+import jiamin.chen.orangecloud.data.model.R2Bucket
+import jiamin.chen.orangecloud.data.model.R2BucketUsage
 import jiamin.chen.orangecloud.data.model.R2Object
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -83,6 +91,7 @@ fun R2BucketListScreen(
     viewModel: R2BucketListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val usageState by viewModel.usageState.collectAsStateWithLifecycle()
     val phase = rememberSkyPhase()
     val onSky = phase.onSky
 
@@ -99,10 +108,106 @@ fun R2BucketListScreen(
                 refreshDescription = stringResource(R.string.common_refresh),
             )
             StorageListBody(state, onSky, Icons.Outlined.Cloud, stringResource(R.string.r2_empty), { viewModel.load() }) { bucket ->
-                StorageRow(Icons.Outlined.Cloud, bucket.name, bucket.location, onClick = { onOpenBucket(bucket.name) })
+                R2BucketRow(
+                    bucket = bucket,
+                    usage = usageState.usageByBucket[bucket.name],
+                    isUsageLoading = usageState.isLoading,
+                    onClick = { onOpenBucket(bucket.name) },
+                )
             }
         }
     }
+}
+
+@Composable
+private fun R2BucketRow(
+    bucket: R2Bucket,
+    usage: R2BucketUsage?,
+    isUsageLoading: Boolean,
+    onClick: () -> Unit,
+) {
+    val cs = MaterialTheme.colorScheme
+    Surface(
+        color = cs.surfaceContainerLow,
+        shape = RoundedCornerShape(18.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+    ) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(OcOrange.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Outlined.Cloud, contentDescription = null, tint = OcOrange, modifier = Modifier.size(23.dp))
+            }
+            Spacer(Modifier.width(13.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        bucket.name,
+                        fontSize = 15.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = cs.onSurface,
+                        modifier = Modifier.weight(1f),
+                    )
+                    bucket.location?.takeIf { it.isNotBlank() }?.let {
+                        Text(it, fontSize = 12.sp, color = cs.onSurfaceVariant, maxLines = 1)
+                    }
+                }
+                if (usage != null) {
+                    Text(
+                        "${stringResource(R.string.r2_usage_storage)} ${formatBytes(usage.storageBytes)} · ${stringResource(R.string.r2_usage_objects)} ${formatCompactCount(usage.objectCount)}",
+                        fontSize = 12.5.sp,
+                        color = cs.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        UsagePill("A ${formatCompactCount(usage.classARequests)}")
+                        UsagePill("B ${formatCompactCount(usage.classBRequests)}")
+                        UsagePill("${stringResource(R.string.r2_usage_month)} ${formatCompactCount(usage.totalRequests)}")
+                    }
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.QueryStats, contentDescription = null, tint = cs.onSurfaceVariant, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text(
+                            text = if (isUsageLoading) stringResource(R.string.r2_usage_loading) else stringResource(R.string.r2_usage_unavailable),
+                            fontSize = 12.5.sp,
+                            color = cs.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = null, tint = cs.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun UsagePill(text: String) {
+    val cs = MaterialTheme.colorScheme
+    Text(
+        text = text,
+        color = cs.primary,
+        fontSize = 11.5.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(cs.primaryContainer.copy(alpha = 0.72f))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    )
+}
+
+private fun formatCompactCount(value: Long): String = when {
+    value >= 1_000_000_000 -> "%.1fB".format(value / 1_000_000_000.0)
+    value >= 1_000_000 -> "%.1fM".format(value / 1_000_000.0)
+    value >= 1_000 -> "%.1fK".format(value / 1_000.0)
+    else -> value.toString()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

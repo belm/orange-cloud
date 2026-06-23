@@ -4,9 +4,16 @@ import jiamin.chen.orangecloud.core.network.CfApiClient
 import jiamin.chen.orangecloud.data.model.AnalyticsGroup
 import jiamin.chen.orangecloud.data.model.AnalyticsQueries
 import jiamin.chen.orangecloud.data.model.AnalyticsTimeRange
+import jiamin.chen.orangecloud.data.model.R2BucketUsage
+import jiamin.chen.orangecloud.data.model.R2UsageData
+import jiamin.chen.orangecloud.data.model.R2UsageVariables
 import jiamin.chen.orangecloud.data.model.TrafficDataPoint
 import jiamin.chen.orangecloud.data.model.ZoneAnalyticsData
 import jiamin.chen.orangecloud.data.model.ZoneAnalyticsVariables
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -77,6 +84,50 @@ class AnalyticsRepository @Inject constructor(
         val zone = data.viewer.zones.firstOrNull() ?: return emptyList()
         return zone.groups.mapNotNull { it.toDataPoint() }
     }
+
+    /** R2 每桶本月操作量 + 当前存储快照。失败由调用方降级，不影响桶列表。 */
+    suspend fun r2UsageByBucket(
+        accountId: String,
+        now: Instant = Instant.now(),
+    ): Map<String, R2BucketUsage> {
+        val nowString = DateTimeFormatter.ISO_INSTANT.format(now)
+        val todayStart = now.atZone(ZoneOffset.UTC).toLocalDate().atStartOfDay(ZoneOffset.UTC).toInstant()
+        val monthStart = now.atZone(ZoneOffset.UTC).toLocalDate().withDayOfMonth(1).atStartOfDay(ZoneOffset.UTC).toInstant()
+        val data = api.graphQL<R2UsageData, R2UsageVariables>(
+            AnalyticsQueries.r2Usage(),
+            R2UsageVariables(
+                accountTag = accountId,
+                monthStart = DateTimeFormatter.ISO_INSTANT.format(monthStart),
+                todayStart = DateTimeFormatter.ISO_INSTANT.format(todayStart),
+                now = nowString,
+            ),
+        )
+        val account = data.viewer.accounts.firstOrNull() ?: return emptyMap()
+        val byBucket = linkedMapOf<String, R2BucketUsage>()
+
+        for (group in account.r2Storage.orEmpty()) {
+            val bucket = group.dimensions?.bucketName?.takeIf { it.isNotBlank() } ?: continue
+            val max = group.max
+            byBucket[bucket] = byBucket[bucket].orEmpty(bucket).copy(
+                storageBytes = (max?.payloadSize ?: 0L) + (max?.metadataSize ?: 0L),
+                objectCount = max?.objectCount ?: 0L,
+            )
+        }
+
+        for (group in account.r2Ops.orEmpty()) {
+            val bucket = group.dimensions?.bucketName?.takeIf { it.isNotBlank() } ?: continue
+            val action = group.dimensions?.actionType ?: continue
+            val requests = group.sum?.requests ?: 0L
+            val current = byBucket[bucket].orEmpty(bucket)
+            byBucket[bucket] = when {
+                action in r2ClassAOperations -> current.copy(classARequests = current.classARequests + requests)
+                action in r2ClassBOperations -> current.copy(classBRequests = current.classBRequests + requests)
+                else -> current
+            }
+        }
+
+        return byBucket
+    }
 }
 
 private fun AnalyticsGroup.toDataPoint(): TrafficDataPoint? {
@@ -91,3 +142,35 @@ private fun AnalyticsGroup.toDataPoint(): TrafficDataPoint? {
         cachedRequests = sum?.cachedRequests ?: 0,
     )
 }
+
+private fun R2BucketUsage?.orEmpty(bucketName: String): R2BucketUsage =
+    this ?: R2BucketUsage(bucketName = bucketName)
+
+private val r2ClassAOperations = setOf(
+    "ListBuckets",
+    "PutBucket",
+    "ListObjects",
+    "PutObject",
+    "CopyObject",
+    "CompleteMultipartUpload",
+    "CreateMultipartUpload",
+    "UploadPart",
+    "UploadPartCopy",
+    "ListMultipartUploads",
+    "ListParts",
+    "PutBucketEncryption",
+    "PutBucketCors",
+    "PutBucketLifecycleConfiguration",
+    "LifecycleStorageTierTransition",
+)
+
+private val r2ClassBOperations = setOf(
+    "HeadBucket",
+    "HeadObject",
+    "GetObject",
+    "UsageSummary",
+    "GetBucketEncryption",
+    "GetBucketLocation",
+    "GetBucketCors",
+    "GetBucketLifecycleConfiguration",
+)

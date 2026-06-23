@@ -1,6 +1,7 @@
 package jiamin.chen.orangecloud.ui.dashboard
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -38,6 +39,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -57,6 +60,10 @@ import jiamin.chen.orangecloud.core.design.theme.OcOrange
 import jiamin.chen.orangecloud.core.design.theme.OcSuccess
 import jiamin.chen.orangecloud.data.model.Account
 import jiamin.chen.orangecloud.data.model.Zone
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
 fun DashboardScreen(
@@ -73,6 +80,12 @@ fun DashboardScreen(
     val onSky = phase.onSky
     val cs = MaterialTheme.colorScheme
     var menuOpen by remember { mutableStateOf(false) }
+    val todayLabel = remember {
+        val locale = Locale.getDefault()
+        val pattern = if (locale.language == Locale.CHINESE.language) "M月d日 EEEE" else "MMM d, EEEE"
+        LocalDate.now().format(DateTimeFormatter.ofPattern(pattern, locale))
+    }
+    val greeting = timeGreeting()
 
     SkyBackground(phase = phase) {
         Box(Modifier.fillMaxSize()) {
@@ -82,15 +95,30 @@ fun DashboardScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(top = 0.dp),
             ) {
-                Spacer(Modifier.height(0.dp))
                 // 顶栏：账号头像（点开切换菜单）
                 Row(
-                    Modifier.fillMaxWidth().padding(start = 24.dp, end = 16.dp, top = 52.dp),
+                    Modifier.fillMaxWidth().padding(start = 24.dp, end = 18.dp, top = 48.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Spacer(Modifier.weight(1f))
+                    Column(Modifier.weight(1f)) {
+                        Text(todayLabel, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = onSky.copy(alpha = 0.66f))
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            stringResource(greeting),
+                            fontSize = 30.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = onSky,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     Box(
-                        Modifier.size(40.dp).clickable { menuOpen = true },
+                        Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(15.dp))
+                            .background(cs.surfaceContainerHigh.copy(alpha = 0.62f))
+                            .border(1.dp, cs.outlineVariant.copy(alpha = 0.42f), RoundedCornerShape(15.dp))
+                            .clickable { menuOpen = true },
                         contentAlignment = Alignment.Center,
                     ) {
                         if (state.accountName.isNotBlank()) {
@@ -102,21 +130,27 @@ fun DashboardScreen(
                 }
 
                 // 问候
-                Column(Modifier.padding(start = 24.dp, end = 24.dp, top = 4.dp, bottom = 16.dp)) {
-                    Text(stringResource(R.string.dashboard_greeting), fontSize = 16.sp, color = cs.onSurfaceVariant)
+                Column(Modifier.padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 18.dp)) {
                     Text(
                         state.accountName.ifBlank { stringResource(R.string.app_name) },
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.Medium,
+                        fontSize = 34.sp,
+                        fontWeight = FontWeight.Bold,
                         color = onSky,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    Text(
+                        stringResource(R.string.dash_account_summary, state.zoneCount, state.bucketCount),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = onSky.copy(alpha = 0.62f),
+                        modifier = Modifier.padding(top = 5.dp),
+                    )
                     if (state.accountEmail.isNotBlank()) {
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
-                            Icon(Icons.Outlined.Cloud, contentDescription = null, tint = cs.onSurfaceVariant, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Outlined.Cloud, contentDescription = null, tint = onSky.copy(alpha = 0.52f), modifier = Modifier.size(14.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text(state.accountEmail, fontSize = 12.sp, color = cs.onSurfaceVariant)
+                            Text(state.accountEmail, fontSize = 12.sp, color = onSky.copy(alpha = 0.52f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
@@ -162,12 +196,40 @@ fun DashboardScreen(
                     }
                 }
 
+                // 用量
+                Text(
+                    stringResource(R.string.dash_usage),
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = onSky,
+                    modifier = Modifier.padding(start = 24.dp, top = 24.dp, bottom = 10.dp),
+                )
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    UsageSummaryCard(
+                        title = stringResource(R.string.dash_usage_requests),
+                        value = state.requestsToday,
+                        caption = stringResource(R.string.dash_usage_requests_caption),
+                        progress = state.requestsToday.progressHint(limit = 100_000.0),
+                        modifier = Modifier.weight(1f),
+                    )
+                    UsageSummaryCard(
+                        title = stringResource(R.string.dash_usage_r2),
+                        value = state.bucketCount,
+                        caption = stringResource(R.string.dash_usage_r2_caption),
+                        progress = state.bucketCount.progressHint(limit = 20.0),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+
                 // 最近访问
                 Row(
                     Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, top = 26.dp, bottom = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(stringResource(R.string.dash_recent), fontSize = 22.sp, fontWeight = FontWeight.Medium, color = onSky, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.dash_recent), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = onSky, modifier = Modifier.weight(1f))
                     Text(
                         stringResource(R.string.dash_view_all),
                         fontSize = 14.sp,
@@ -178,9 +240,10 @@ fun DashboardScreen(
                 }
                 if (state.recentZones.isNotEmpty()) {
                     Surface(
-                        color = cs.surfaceContainerLow,
-                        shape = RoundedCornerShape(20.dp),
+                        color = cs.surfaceContainerLow.copy(alpha = 0.78f),
+                        shape = RoundedCornerShape(24.dp),
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        tonalElevation = 1.dp,
                     ) {
                         Column {
                             state.recentZones.forEachIndexed { i, zone ->
@@ -194,7 +257,7 @@ fun DashboardScreen(
                 Text(
                     stringResource(R.string.dash_quick),
                     fontSize = 22.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.Bold,
                     color = onSky,
                     modifier = Modifier.padding(start = 24.dp, top = 26.dp, bottom = 10.dp),
                 )
@@ -217,6 +280,74 @@ fun DashboardScreen(
                 )
             }
         }
+    }
+}
+
+private fun timeGreeting(): Int {
+    val hour = LocalTime.now().hour
+    return when (hour) {
+        in 5..10 -> R.string.dash_greeting_morning
+        in 11..13 -> R.string.dash_greeting_noon
+        in 14..17 -> R.string.dash_greeting_afternoon
+        else -> R.string.dash_greeting_evening
+    }
+}
+
+private fun String.progressHint(limit: Double): Float {
+    val normalized = trim().replace(",", "")
+    val multiplier = when {
+        normalized.endsWith("M", ignoreCase = true) -> 1_000_000.0
+        normalized.endsWith("K", ignoreCase = true) -> 1_000.0
+        else -> 1.0
+    }
+    val number = normalized.trimEnd('M', 'm', 'K', 'k').toDoubleOrNull() ?: 0.0
+    return (number * multiplier / limit).toFloat()
+}
+
+@Composable
+private fun UsageSummaryCard(
+    title: String,
+    value: String,
+    caption: String,
+    progress: Float,
+    modifier: Modifier = Modifier,
+) {
+    val cs = MaterialTheme.colorScheme
+    Surface(
+        color = cs.surfaceContainerLow.copy(alpha = 0.76f),
+        shape = RoundedCornerShape(24.dp),
+        modifier = modifier.border(1.dp, cs.outlineVariant.copy(alpha = 0.42f), RoundedCornerShape(24.dp)),
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            ProgressRing(progress = progress.coerceIn(0f, 1f))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, fontSize = 12.5.sp, fontWeight = FontWeight.Medium, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(value, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = cs.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(caption, fontSize = 11.5.sp, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProgressRing(progress: Float) {
+    val cs = MaterialTheme.colorScheme
+    Box(
+        Modifier
+            .size(42.dp)
+            .clip(RoundedCornerShape(21.dp))
+            .background(
+                Brush.sweepGradient(
+                    0f to OcOrange,
+                    progress.coerceAtLeast(0.08f) to OcOrange,
+                    progress.coerceAtLeast(0.08f) to cs.outlineVariant.copy(alpha = 0.5f),
+                    1f to cs.outlineVariant.copy(alpha = 0.5f),
+                ),
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(Modifier.size(28.dp).clip(RoundedCornerShape(14.dp)).background(cs.surfaceContainerLow))
     }
 }
 
