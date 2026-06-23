@@ -38,6 +38,7 @@ data class R2BucketUsageUiState(
     val usageByBucket: Map<String, R2BucketUsage> = emptyMap(),
     val isLoading: Boolean = false,
     val hasError: Boolean = false,
+    val canLoadUsage: Boolean = true,
 )
 
 @HiltViewModel
@@ -49,11 +50,11 @@ class R2BucketListViewModel @Inject constructor(
 ) : StorageListViewModel<R2Bucket>(accountStore, authRepository.hasScope(Scopes.R2_READ)) {
     private val canLoadUsage = authRepository.hasScope(Scopes.ACCOUNT_ANALYTICS_READ)
 
-    private val _usageState = MutableStateFlow(R2BucketUsageUiState())
+    private val _usageState = MutableStateFlow(R2BucketUsageUiState(canLoadUsage = canLoadUsage))
     val usageState: StateFlow<R2BucketUsageUiState> = _usageState.asStateFlow()
 
     override suspend fun fetch(accountId: String): List<R2Bucket> = coroutineScope {
-        _usageState.update { R2BucketUsageUiState(isLoading = canLoadUsage) }
+        _usageState.update { R2BucketUsageUiState(isLoading = canLoadUsage, canLoadUsage = canLoadUsage) }
         val buckets = async { storageRepository.listBuckets(accountId) }
         val usage = if (canLoadUsage) {
             async { runCatching { analyticsRepository.r2UsageByBucket(accountId) } }

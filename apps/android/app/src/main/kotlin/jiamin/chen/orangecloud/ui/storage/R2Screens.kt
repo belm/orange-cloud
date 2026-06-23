@@ -112,6 +112,7 @@ fun R2BucketListScreen(
                     bucket = bucket,
                     usage = usageState.usageByBucket[bucket.name],
                     isUsageLoading = usageState.isLoading,
+                    canLoadUsage = usageState.canLoadUsage,
                     onClick = { onOpenBucket(bucket.name) },
                 )
             }
@@ -124,6 +125,7 @@ private fun R2BucketRow(
     bucket: R2Bucket,
     usage: R2BucketUsage?,
     isUsageLoading: Boolean,
+    canLoadUsage: Boolean,
     onClick: () -> Unit,
 ) {
     val cs = MaterialTheme.colorScheme
@@ -168,7 +170,7 @@ private fun R2BucketRow(
                         UsagePill("B ${formatCompactCount(usage.classBRequests)}")
                         UsagePill("${stringResource(R.string.r2_usage_month)} ${formatCompactCount(usage.totalRequests)}")
                     }
-                } else {
+                } else if (canLoadUsage) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.QueryStats, contentDescription = null, tint = cs.onSurfaceVariant, modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(5.dp))
