@@ -64,7 +64,12 @@ class R2BucketListViewModel @Inject constructor(
             val result = buckets.await()
             usage?.await()?.fold(
                 onSuccess = { usageByBucket ->
-                    _usageState.update { it.copy(usageByBucket = usageByBucket, isLoading = false, hasError = false) }
+                    // Buckets absent from the API response had zero activity; give them a
+                    // zero-usage entry so the row shows "0" instead of "用量暂不可用".
+                    val complete = result.associate { bucket ->
+                        bucket.name to (usageByBucket[bucket.name] ?: R2BucketUsage(bucketName = bucket.name))
+                    }
+                    _usageState.update { it.copy(usageByBucket = complete, isLoading = false, hasError = false) }
                 },
                 onFailure = {
                     _usageState.update { it.copy(isLoading = false, hasError = true) }

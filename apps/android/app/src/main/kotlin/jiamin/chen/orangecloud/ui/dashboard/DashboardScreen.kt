@@ -40,7 +40,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -56,7 +55,6 @@ import jiamin.chen.orangecloud.core.design.StatusDot
 import jiamin.chen.orangecloud.core.design.ZoneAvatar
 import jiamin.chen.orangecloud.core.design.onSky
 import jiamin.chen.orangecloud.core.design.rememberSkyPhase
-import jiamin.chen.orangecloud.core.design.theme.OcOrange
 import jiamin.chen.orangecloud.core.design.theme.OcSuccess
 import jiamin.chen.orangecloud.data.model.Account
 import jiamin.chen.orangecloud.data.model.Zone
@@ -196,34 +194,6 @@ fun DashboardScreen(
                     }
                 }
 
-                // 用量
-                Text(
-                    stringResource(R.string.dash_usage),
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = onSky,
-                    modifier = Modifier.padding(start = 24.dp, top = 24.dp, bottom = 10.dp),
-                )
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    UsageSummaryCard(
-                        title = stringResource(R.string.dash_usage_requests),
-                        value = state.requestsToday,
-                        caption = stringResource(R.string.dash_usage_requests_caption),
-                        progress = state.requestsToday.progressHint(limit = 100_000.0),
-                        modifier = Modifier.weight(1f),
-                    )
-                    UsageSummaryCard(
-                        title = stringResource(R.string.dash_usage_r2),
-                        value = state.bucketCount,
-                        caption = stringResource(R.string.dash_usage_r2_caption),
-                        progress = state.bucketCount.progressHint(limit = 20.0),
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-
                 // 最近访问
                 Row(
                     Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, top = 26.dp, bottom = 10.dp),
@@ -290,64 +260,6 @@ private fun timeGreeting(): Int {
         in 11..13 -> R.string.dash_greeting_noon
         in 14..17 -> R.string.dash_greeting_afternoon
         else -> R.string.dash_greeting_evening
-    }
-}
-
-private fun String.progressHint(limit: Double): Float {
-    val normalized = trim().replace(",", "")
-    val multiplier = when {
-        normalized.endsWith("M", ignoreCase = true) -> 1_000_000.0
-        normalized.endsWith("K", ignoreCase = true) -> 1_000.0
-        else -> 1.0
-    }
-    val number = normalized.trimEnd('M', 'm', 'K', 'k').toDoubleOrNull() ?: 0.0
-    return (number * multiplier / limit).toFloat()
-}
-
-@Composable
-private fun UsageSummaryCard(
-    title: String,
-    value: String,
-    caption: String,
-    progress: Float,
-    modifier: Modifier = Modifier,
-) {
-    val cs = MaterialTheme.colorScheme
-    Surface(
-        color = cs.surfaceContainerLow.copy(alpha = 0.76f),
-        shape = RoundedCornerShape(24.dp),
-        modifier = modifier.border(1.dp, cs.outlineVariant.copy(alpha = 0.42f), RoundedCornerShape(24.dp)),
-    ) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            ProgressRing(progress = progress.coerceIn(0f, 1f))
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, fontSize = 12.5.sp, fontWeight = FontWeight.Medium, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(value, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = cs.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(caption, fontSize = 11.5.sp, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
-    }
-}
-
-@Composable
-private fun ProgressRing(progress: Float) {
-    val cs = MaterialTheme.colorScheme
-    Box(
-        Modifier
-            .size(42.dp)
-            .clip(RoundedCornerShape(21.dp))
-            .background(
-                Brush.sweepGradient(
-                    0f to OcOrange,
-                    progress.coerceAtLeast(0.08f) to OcOrange,
-                    progress.coerceAtLeast(0.08f) to cs.outlineVariant.copy(alpha = 0.5f),
-                    1f to cs.outlineVariant.copy(alpha = 0.5f),
-                ),
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(Modifier.size(28.dp).clip(RoundedCornerShape(14.dp)).background(cs.surfaceContainerLow))
     }
 }
 
