@@ -68,6 +68,10 @@
     <string name="scope_missing">More permissions needed. Go to Settings, sign out, then sign in again to grant access for this feature.</string>
     <string name="common_loading">Loading…</string>
     <string name="common_load_more">Load more</string>
+    <string name="common_create">Create</string>
+    <string name="common_save">Save</string>
+    <string name="common_copy">Copy</string>
+    <string name="common_remove">Remove</string>
 
     <!-- Storage -->
     <string name="nav_storage">Storage</string>
@@ -92,6 +96,24 @@
     <string name="r2_usage_month">This month</string>
     <string name="r2_usage_loading">Loading usage</string>
     <string name="r2_usage_unavailable">Usage unavailable</string>
+    <string name="r2_root">Root</string>
+    <string name="r2_folder">Folder</string>
+    <string name="r2_search_objects">Search objects</string>
+    <string name="r2_new_folder">New folder</string>
+    <string name="r2_folder_name">Folder name</string>
+    <string name="r2_folder_created">Folder created</string>
+    <string name="r2_selected_count">%1$d selected</string>
+    <string name="r2_delete_selected">Delete selected</string>
+    <string name="r2_uploading">Uploading</string>
+    <string name="r2_bucket_settings">Bucket settings</string>
+    <string name="r2_settings_saved">Settings saved</string>
+    <string name="r2_managed_domain">r2.dev public access</string>
+    <string name="r2_domain_unavailable">Domain unavailable</string>
+    <string name="r2_custom_domains">Custom domains</string>
+    <string name="r2_custom_domains_empty">No custom domains bound yet</string>
+    <string name="r2_cors_policy">CORS policy</string>
+    <string name="r2_cors_hint">Edit the Cloudflare R2 CORS JSON structure. Saving applies it to this bucket.</string>
+    <string name="r2_cors_clear">Clear CORS</string>
     <string name="d1_empty">No databases yet</string>
     <string name="d1_tables">%1$d tables</string>
     <string name="d1_sql">SQL statement</string>

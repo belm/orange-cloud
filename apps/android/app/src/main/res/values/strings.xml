@@ -72,6 +72,10 @@
     <string name="scope_missing">需要更多权限。请到「设置」退出后重新登录以授予此功能的权限。</string>
     <string name="common_loading">加载中…</string>
     <string name="common_load_more">加载更多</string>
+    <string name="common_create">创建</string>
+    <string name="common_save">保存</string>
+    <string name="common_copy">复制</string>
+    <string name="common_remove">移除</string>
 
     <!-- 存储 -->
     <string name="nav_storage">存储</string>
@@ -96,6 +100,24 @@
     <string name="r2_usage_month">本月</string>
     <string name="r2_usage_loading">正在读取用量</string>
     <string name="r2_usage_unavailable">用量暂不可用</string>
+    <string name="r2_root">根目录</string>
+    <string name="r2_folder">文件夹</string>
+    <string name="r2_search_objects">搜索对象</string>
+    <string name="r2_new_folder">新建文件夹</string>
+    <string name="r2_folder_name">文件夹名称</string>
+    <string name="r2_folder_created">文件夹已创建</string>
+    <string name="r2_selected_count">已选择 %1$d 个</string>
+    <string name="r2_delete_selected">删除所选</string>
+    <string name="r2_uploading">正在上传</string>
+    <string name="r2_bucket_settings">Bucket 设置</string>
+    <string name="r2_settings_saved">设置已保存</string>
+    <string name="r2_managed_domain">r2.dev 公共访问</string>
+    <string name="r2_domain_unavailable">暂未返回域名</string>
+    <string name="r2_custom_domains">自定义域名</string>
+    <string name="r2_custom_domains_empty">还没有绑定自定义域名</string>
+    <string name="r2_cors_policy">CORS 规则</string>
+    <string name="r2_cors_hint">以 Cloudflare R2 CORS JSON 结构编辑，保存后立即应用到当前 Bucket。</string>
+    <string name="r2_cors_clear">清空 CORS</string>
     <string name="d1_empty">还没有数据库</string>
     <string name="d1_tables">%1$d 个表</string>
     <string name="d1_sql">SQL 语句</string>

@@ -11,6 +11,9 @@ import jiamin.chen.orangecloud.data.model.D1QueryResult
 import jiamin.chen.orangecloud.data.model.KVKey
 import jiamin.chen.orangecloud.data.model.KVNamespace
 import jiamin.chen.orangecloud.data.model.R2Bucket
+import jiamin.chen.orangecloud.data.model.R2CorsPolicy
+import jiamin.chen.orangecloud.data.model.R2CustomDomain
+import jiamin.chen.orangecloud.data.model.R2ManagedDomain
 import jiamin.chen.orangecloud.data.model.R2BucketUsage
 import jiamin.chen.orangecloud.data.model.R2Object
 import jiamin.chen.orangecloud.data.model.D1Column
@@ -169,19 +172,38 @@ class KVNamespaceListViewModel @Inject constructor(
 sealed interface R2Event {
     data object Uploaded : R2Event
     data object Deleted : R2Event
+    data object FolderCreated : R2Event
+    data object SettingsSaved : R2Event
     data class Error(val message: String?) : R2Event
 }
 
+data class R2BucketSettingsUiState(
+    val isLoading: Boolean = false,
+    val isSaving: Boolean = false,
+    val hasError: Boolean = false,
+    val managedDomain: R2ManagedDomain? = null,
+    val customDomains: List<R2CustomDomain> = emptyList(),
+    val corsPolicy: R2CorsPolicy? = null,
+)
+
 data class R2ObjectUiState(
     val objects: List<R2Object> = emptyList(),
+    val currentPrefix: String = "",
+    val query: String = "",
+    val selectedKeys: Set<String> = emptySet(),
     val isLoading: Boolean = false,
     val isLoadingMore: Boolean = false,
     val isUploading: Boolean = false,
+    val uploadName: String? = null,
+    val uploadProgress: Float? = null,
     val isDownloading: Boolean = false,
+    val isBatchDeleting: Boolean = false,
+    val isCreatingFolder: Boolean = false,
     val hasError: Boolean = false,
     val missingScope: Boolean = false,
     val hasMore: Boolean = false,
     val canWrite: Boolean = false,
+    val settings: R2BucketSettingsUiState = R2BucketSettingsUiState(),
 )
 
 @HiltViewModel
@@ -213,10 +235,42 @@ class R2ObjectListViewModel @Inject constructor(
         if (!hasScope) return
         cursor = null
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, hasError = false, objects = emptyList()) }
+            _uiState.update { it.copy(isLoading = true, hasError = false, objects = emptyList(), selectedKeys = emptySet()) }
             fetchPage(reset = true)
             _uiState.update { it.copy(isLoading = false) }
         }
+    }
+
+    fun openPrefix(prefix: String) {
+        val clean = prefix.trim('/').takeIf { it.isNotBlank() }?.plus("/").orEmpty()
+        _uiState.update { it.copy(currentPrefix = clean, query = "") }
+        loadFirst()
+    }
+
+    fun openFolder(name: String) {
+        openPrefix(_uiState.value.currentPrefix + name.trim('/') + "/")
+    }
+
+    fun goUp() {
+        val prefix = _uiState.value.currentPrefix.trimEnd('/')
+        if (prefix.isBlank()) return
+        val parent = prefix.substringBeforeLast('/', missingDelimiterValue = "")
+        openPrefix(parent)
+    }
+
+    fun updateQuery(query: String) {
+        _uiState.update { it.copy(query = query) }
+    }
+
+    fun toggleSelection(key: String) {
+        _uiState.update {
+            val keys = if (key in it.selectedKeys) it.selectedKeys - key else it.selectedKeys + key
+            it.copy(selectedKeys = keys)
+        }
+    }
+
+    fun clearSelection() {
+        _uiState.update { it.copy(selectedKeys = emptySet()) }
     }
 
     fun loadMore() {
@@ -235,7 +289,7 @@ class R2ObjectListViewModel @Inject constructor(
                 _uiState.update { it.copy(hasError = true) }
                 return
             }
-            val (objects, next) = storageRepository.listObjects(accountId, bucket, cursor)
+            val (objects, next) = storageRepository.listObjects(accountId, bucket, cursor, _uiState.value.currentPrefix)
             cursor = next
             _uiState.update {
                 it.copy(objects = if (reset) objects else it.objects + objects, hasMore = next != null)
@@ -263,16 +317,36 @@ class R2ObjectListViewModel @Inject constructor(
     fun upload(filename: String, contentType: String, bytes: ByteArray) {
         if (!canWrite) return
         viewModelScope.launch {
-            _uiState.update { it.copy(isUploading = true) }
+            val key = _uiState.value.currentPrefix + filename
+            _uiState.update { it.copy(isUploading = true, uploadName = key, uploadProgress = 0.2f) }
             try {
                 val accountId = accountStore.selectedAccountId.value ?: error("no account")
-                storageRepository.putObject(accountId, bucket, filename, bytes, contentType)
+                _uiState.update { it.copy(uploadProgress = 0.55f) }
+                storageRepository.putObject(accountId, bucket, key, bytes, contentType)
+                _uiState.update { it.copy(uploadProgress = 1f) }
                 eventChannel.send(R2Event.Uploaded)
                 loadFirst()
             } catch (e: Exception) {
                 eventChannel.send(R2Event.Error(e.message))
             } finally {
-                _uiState.update { it.copy(isUploading = false) }
+                _uiState.update { it.copy(isUploading = false, uploadName = null, uploadProgress = null) }
+            }
+        }
+    }
+
+    fun createFolder(name: String) {
+        if (!canWrite || name.isBlank()) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isCreatingFolder = true) }
+            try {
+                val accountId = accountStore.selectedAccountId.value ?: error("no account")
+                storageRepository.createFolder(accountId, bucket, _uiState.value.currentPrefix + name.trim('/'))
+                eventChannel.send(R2Event.FolderCreated)
+                loadFirst()
+            } catch (e: Exception) {
+                eventChannel.send(R2Event.Error(e.message))
+            } finally {
+                _uiState.update { it.copy(isCreatingFolder = false) }
             }
         }
     }
@@ -288,6 +362,101 @@ class R2ObjectListViewModel @Inject constructor(
             } catch (e: Exception) {
                 eventChannel.send(R2Event.Error(e.message))
             }
+        }
+    }
+
+    fun deleteSelected() {
+        val keys = _uiState.value.selectedKeys
+        if (!canWrite || keys.isEmpty()) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isBatchDeleting = true) }
+            try {
+                val accountId = accountStore.selectedAccountId.value ?: error("no account")
+                keys.forEach { key -> storageRepository.deleteObject(accountId, bucket, key) }
+                _uiState.update { it.copy(objects = it.objects.filterNot { obj -> obj.key in keys }, selectedKeys = emptySet()) }
+                eventChannel.send(R2Event.Deleted)
+            } catch (e: Exception) {
+                eventChannel.send(R2Event.Error(e.message))
+            } finally {
+                _uiState.update { it.copy(isBatchDeleting = false) }
+            }
+        }
+    }
+
+    fun loadSettings() {
+        if (!hasScope) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(settings = it.settings.copy(isLoading = true, hasError = false)) }
+            try {
+                val accountId = accountStore.selectedAccountId.value ?: error("no account")
+                val managed = runCatching { storageRepository.getManagedDomain(accountId, bucket) }.getOrNull()
+                val custom = runCatching { storageRepository.listCustomDomains(accountId, bucket) }.getOrDefault(emptyList())
+                val cors = runCatching { storageRepository.getCorsPolicy(accountId, bucket) }.getOrNull()
+                _uiState.update {
+                    it.copy(settings = it.settings.copy(
+                        isLoading = false,
+                        isSaving = false,
+                        managedDomain = managed,
+                        customDomains = custom,
+                        corsPolicy = cors,
+                        hasError = false,
+                    ))
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(settings = it.settings.copy(isLoading = false, hasError = true)) }
+            }
+        }
+    }
+
+    fun setManagedDomainEnabled(enabled: Boolean) {
+        if (!canWrite) return
+        viewModelScope.launch {
+            saveSettings {
+                val accountId = accountStore.selectedAccountId.value ?: error("no account")
+                storageRepository.setManagedDomainEnabled(accountId, bucket, enabled)
+            }
+        }
+    }
+
+    fun saveCorsPolicy(policy: R2CorsPolicy) {
+        if (!canWrite) return
+        viewModelScope.launch {
+            saveSettings {
+                val accountId = accountStore.selectedAccountId.value ?: error("no account")
+                storageRepository.putCorsPolicy(accountId, bucket, policy)
+            }
+        }
+    }
+
+    fun deleteCorsPolicy() {
+        if (!canWrite) return
+        viewModelScope.launch {
+            saveSettings {
+                val accountId = accountStore.selectedAccountId.value ?: error("no account")
+                storageRepository.deleteCorsPolicy(accountId, bucket)
+            }
+        }
+    }
+
+    fun removeCustomDomain(domain: String) {
+        if (!canWrite) return
+        viewModelScope.launch {
+            saveSettings {
+                val accountId = accountStore.selectedAccountId.value ?: error("no account")
+                storageRepository.removeCustomDomain(accountId, bucket, domain)
+            }
+        }
+    }
+
+    private suspend fun saveSettings(block: suspend () -> Unit) {
+        _uiState.update { it.copy(settings = it.settings.copy(isSaving = true, hasError = false)) }
+        try {
+            block()
+            eventChannel.send(R2Event.SettingsSaved)
+            loadSettings()
+        } catch (e: Exception) {
+            eventChannel.send(R2Event.Error(e.message))
+            _uiState.update { it.copy(settings = it.settings.copy(isSaving = false, hasError = true)) }
         }
     }
 }

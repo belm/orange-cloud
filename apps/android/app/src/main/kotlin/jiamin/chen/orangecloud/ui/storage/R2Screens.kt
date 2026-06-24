@@ -8,12 +8,17 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -28,23 +33,37 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Cloud
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.QueryStats
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Upload
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -76,12 +95,15 @@ import jiamin.chen.orangecloud.core.design.SkyHeader
 import jiamin.chen.orangecloud.core.design.onSky
 import jiamin.chen.orangecloud.core.design.rememberSkyPhase
 import jiamin.chen.orangecloud.core.design.theme.OcOrange
+import jiamin.chen.orangecloud.core.util.copyToClipboard
 import jiamin.chen.orangecloud.data.model.R2Bucket
+import jiamin.chen.orangecloud.data.model.R2CorsPolicy
 import jiamin.chen.orangecloud.data.model.R2BucketUsage
 import jiamin.chen.orangecloud.data.model.R2Object
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
 import java.io.File
 
 @Composable
@@ -225,16 +247,44 @@ fun R2ObjectListScreen(
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     var detailObject by remember { mutableStateOf<R2Object?>(null) }
+    var showNewFolder by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
+    val folderRows = remember(state.objects, state.currentPrefix, state.query) {
+        state.objects
+            .asSequence()
+            .mapNotNull { obj ->
+                val relative = obj.key.removePrefix(state.currentPrefix).trimStart('/')
+                val folder = relative.substringBefore('/', missingDelimiterValue = "")
+                folder.takeIf { relative.contains('/') && it.isNotBlank() && it.contains(state.query, ignoreCase = true) }
+            }
+            .distinct()
+            .sorted()
+            .toList()
+    }
+    val objectRows = remember(state.objects, state.currentPrefix, state.query) {
+        state.objects.filter { obj ->
+            val relative = obj.key.removePrefix(state.currentPrefix).trimStart('/')
+            relative.isNotBlank() &&
+                !relative.trimEnd('/').contains('/') &&
+                !obj.key.endsWith("/") &&
+                obj.key.contains(state.query, ignoreCase = true)
+        }
+    }
+    val hasRows = folderRows.isNotEmpty() || objectRows.isNotEmpty()
 
     val uploadedMsg = stringResource(R.string.r2_uploaded)
     val deletedMsg = stringResource(R.string.r2_deleted)
     val noAppMsg = stringResource(R.string.r2_no_app)
+    val folderCreatedMsg = stringResource(R.string.r2_folder_created)
+    val settingsSavedMsg = stringResource(R.string.r2_settings_saved)
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
                 R2Event.Uploaded -> snackbarHostState.showSnackbar(uploadedMsg)
                 R2Event.Deleted -> { detailObject = null; snackbarHostState.showSnackbar(deletedMsg) }
+                R2Event.FolderCreated -> snackbarHostState.showSnackbar(folderCreatedMsg)
+                R2Event.SettingsSaved -> snackbarHostState.showSnackbar(settingsSavedMsg)
                 is R2Event.Error -> snackbarHostState.showSnackbar(event.message ?: noAppMsg)
             }
         }
@@ -295,29 +345,54 @@ fun R2ObjectListScreen(
                     backDescription = stringResource(R.string.common_back),
                     refreshDescription = stringResource(R.string.common_refresh),
                 )
+                R2ObjectToolbar(
+                    state = state,
+                    onSearch = viewModel::updateQuery,
+                    onUp = viewModel::goUp,
+                    onNewFolder = { showNewFolder = true },
+                    onSettings = {
+                        showSettings = true
+                        viewModel.loadSettings()
+                    },
+                    onClearSelection = viewModel::clearSelection,
+                    onDeleteSelected = viewModel::deleteSelected,
+                )
                 when {
                     state.missingScope ->
                         SkyEmptyState(Icons.Outlined.Lock, stringResource(R.string.scope_missing), onSky, stringResource(R.string.common_refresh)) { viewModel.loadFirst() }
 
-                    state.objects.isEmpty() && state.isLoading ->
+                    state.isLoading ->
                         Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator(color = onSky) }
 
-                    state.objects.isEmpty() && state.hasError ->
+                    state.hasError ->
                         SkyEmptyState(Icons.AutoMirrored.Outlined.InsertDriveFile, stringResource(R.string.error_generic), onSky, stringResource(R.string.common_refresh)) { viewModel.loadFirst() }
 
-                    state.objects.isEmpty() ->
+                    !hasRows ->
                         SkyEmptyState(Icons.AutoMirrored.Outlined.InsertDriveFile, stringResource(R.string.r2_objects_empty), onSky, stringResource(R.string.common_refresh)) { viewModel.loadFirst() }
 
                     else -> LazyColumn(
                         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        items(state.objects, key = { it.key }) { obj ->
+                        items(folderRows, key = { "folder:$it" }) { folder ->
                             StorageRow(
-                                Icons.AutoMirrored.Outlined.InsertDriveFile,
-                                obj.key,
-                                obj.size?.let { formatBytes(it) },
-                                onClick = { detailObject = obj },
+                                Icons.Outlined.Folder,
+                                folder,
+                                stringResource(R.string.r2_folder),
+                                onClick = { viewModel.openFolder(folder) },
+                            )
+                        }
+                        items(objectRows, key = { it.key }) { obj ->
+                            R2ObjectRow(
+                                obj = obj,
+                                prefix = state.currentPrefix,
+                                selected = obj.key in state.selectedKeys,
+                                selectionMode = state.selectedKeys.isNotEmpty(),
+                                onClick = {
+                                    if (state.selectedKeys.isNotEmpty()) viewModel.toggleSelection(obj.key)
+                                    else detailObject = obj
+                                },
+                                onLongClick = { viewModel.toggleSelection(obj.key) },
                             )
                         }
                         if (state.hasMore) {
@@ -331,6 +406,29 @@ fun R2ObjectListScreen(
                                 }
                             }
                         }
+                    }
+                }
+            }
+
+            if (state.isUploading) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 6.dp,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(horizontal = 16.dp, vertical = 92.dp)
+                        .systemBarsPadding()
+                        .fillMaxWidth(),
+                ) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            state.uploadName ?: stringResource(R.string.r2_uploading),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        LinearProgressIndicator(progress = { state.uploadProgress ?: 0.2f }, modifier = Modifier.fillMaxWidth())
                     }
                 }
             }
@@ -353,6 +451,35 @@ fun R2ObjectListScreen(
         }
     }
 
+    if (showNewFolder) {
+        NewFolderDialog(
+            isCreating = state.isCreatingFolder,
+            onDismiss = { showNewFolder = false },
+            onCreate = {
+                viewModel.createFolder(it)
+                showNewFolder = false
+            },
+        )
+    }
+
+    if (showSettings) {
+        ModalBottomSheet(
+            onDismissRequest = { showSettings = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        ) {
+            R2BucketSettingsSheet(
+                bucket = viewModel.bucket,
+                state = state.settings,
+                canWrite = state.canWrite,
+                onRefresh = viewModel::loadSettings,
+                onToggleManaged = viewModel::setManagedDomainEnabled,
+                onSaveCors = viewModel::saveCorsPolicy,
+                onDeleteCors = viewModel::deleteCorsPolicy,
+                onRemoveCustomDomain = viewModel::removeCustomDomain,
+            )
+        }
+    }
+
     detailObject?.let { obj ->
         ModalBottomSheet(
             onDismissRequest = { detailObject = null },
@@ -366,6 +493,296 @@ fun R2ObjectListScreen(
                 onDelete = { viewModel.delete(obj.key) },
             )
         }
+    }
+}
+
+@Composable
+private fun R2ObjectToolbar(
+    state: R2ObjectUiState,
+    onSearch: (String) -> Unit,
+    onUp: () -> Unit,
+    onNewFolder: () -> Unit,
+    onSettings: () -> Unit,
+    onClearSelection: () -> Unit,
+    onDeleteSelected: () -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onUp, enabled = state.currentPrefix.isNotBlank(), modifier = Modifier.weight(1f)) {
+                Text(state.currentPrefix.ifBlank { stringResource(R.string.r2_root) }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            IconButton(onClick = onNewFolder, enabled = state.canWrite) {
+                Icon(Icons.Outlined.CreateNewFolder, contentDescription = stringResource(R.string.r2_new_folder))
+            }
+            IconButton(onClick = onSettings) {
+                Icon(Icons.Outlined.Settings, contentDescription = stringResource(R.string.r2_bucket_settings))
+            }
+        }
+        OutlinedTextField(
+            value = state.query,
+            onValueChange = onSearch,
+            singleLine = true,
+            leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+            placeholder = { Text(stringResource(R.string.r2_search_objects)) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (state.selectedKeys.isNotEmpty()) {
+            Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(14.dp)) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        stringResource(R.string.r2_selected_count, state.selectedKeys.size),
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = onClearSelection) { Text(stringResource(R.string.common_cancel)) }
+                    Button(
+                        onClick = onDeleteSelected,
+                        enabled = !state.isBatchDeleting,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE5484D), contentColor = Color.White),
+                    ) {
+                        Text(stringResource(R.string.r2_delete_selected))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun R2ObjectRow(
+    obj: R2Object,
+    prefix: String,
+    selected: Boolean,
+    selectionMode: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    val cs = MaterialTheme.colorScheme
+    Surface(
+        color = if (selected) cs.primaryContainer.copy(alpha = 0.72f) else cs.surfaceContainerLow,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+    ) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (selectionMode) {
+                Checkbox(checked = selected, onCheckedChange = { onClick() })
+                Spacer(Modifier.width(4.dp))
+            }
+            Icon(
+                if (selected) Icons.Outlined.CheckCircle else Icons.AutoMirrored.Outlined.InsertDriveFile,
+                contentDescription = null,
+                tint = if (selected) cs.primary else OcOrange,
+                modifier = Modifier.size(24.dp),
+            )
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    obj.key.removePrefix(prefix).ifBlank { obj.key },
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = cs.onSurface,
+                )
+                Text(
+                    listOfNotNull(obj.size?.let { formatBytes(it) }, obj.lastModified).joinToString(" · "),
+                    fontSize = 13.sp,
+                    color = cs.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NewFolderDialog(
+    isCreating: Boolean,
+    onDismiss: () -> Unit,
+    onCreate: (String) -> Unit,
+) {
+    var name by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.r2_new_folder)) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                singleLine = true,
+                label = { Text(stringResource(R.string.r2_folder_name)) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            Button(onClick = { onCreate(name) }, enabled = name.isNotBlank() && !isCreating) {
+                Text(stringResource(R.string.common_create))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+        },
+    )
+}
+
+@Composable
+private fun R2BucketSettingsSheet(
+    bucket: String,
+    state: R2BucketSettingsUiState,
+    canWrite: Boolean,
+    onRefresh: () -> Unit,
+    onToggleManaged: (Boolean) -> Unit,
+    onSaveCors: (R2CorsPolicy) -> Unit,
+    onDeleteCors: () -> Unit,
+    onRemoveCustomDomain: (String) -> Unit,
+) {
+    val context = LocalContext.current
+    val json = remember { Json { prettyPrint = true; ignoreUnknownKeys = true; encodeDefaults = true } }
+    var corsText by remember { mutableStateOf("") }
+    var corsError by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(state.corsPolicy) {
+        corsText = state.corsPolicy?.let { json.encodeToString(R2CorsPolicy.serializer(), it) } ?: """{"rules":[]}"""
+        corsError = null
+    }
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(bucket, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            IconButton(onClick = onRefresh) {
+                Icon(Icons.Outlined.QueryStats, contentDescription = stringResource(R.string.common_refresh))
+            }
+        }
+        if (state.isLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
+        if (state.hasError) Text(stringResource(R.string.error_generic), color = MaterialTheme.colorScheme.error)
+
+        SettingsBlock(title = stringResource(R.string.r2_managed_domain)) {
+            val managed = state.managedDomain
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(managed?.domain?.takeIf { it.isNotBlank() } ?: stringResource(R.string.r2_domain_unavailable), fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (managed?.enabled == true) stringResource(R.string.common_on) else stringResource(R.string.common_off),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                    )
+                }
+                if (!managed?.domain.isNullOrBlank()) {
+                    IconButton(onClick = { copyToClipboard(context, "https://${managed?.domain}") }) {
+                        Icon(Icons.Outlined.ContentCopy, contentDescription = stringResource(R.string.common_copy))
+                    }
+                }
+                Switch(
+                    checked = managed?.enabled == true,
+                    onCheckedChange = onToggleManaged,
+                    enabled = canWrite && !state.isSaving,
+                )
+            }
+        }
+
+        SettingsBlock(title = stringResource(R.string.r2_custom_domains)) {
+            if (state.customDomains.isEmpty()) {
+                Text(stringResource(R.string.r2_custom_domains_empty), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+            } else {
+                state.customDomains.forEach { domain ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(domain.domain, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                listOfNotNull(
+                                    if (domain.enabled) stringResource(R.string.common_on) else stringResource(R.string.common_off),
+                                    domain.status?.ownership,
+                                    domain.status?.ssl,
+                                ).joinToString(" · "),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        IconButton(onClick = { copyToClipboard(context, "https://${domain.domain}") }) {
+                            Icon(Icons.Outlined.ContentCopy, contentDescription = stringResource(R.string.common_copy))
+                        }
+                        if (canWrite) {
+                            TextButton(onClick = { onRemoveCustomDomain(domain.domain) }, enabled = !state.isSaving) {
+                                Text(stringResource(R.string.common_remove), color = Color(0xFFE5484D))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        SettingsBlock(title = stringResource(R.string.r2_cors_policy)) {
+            Text(stringResource(R.string.r2_cors_hint), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+            OutlinedTextField(
+                value = corsText,
+                onValueChange = { corsText = it; corsError = null },
+                minLines = 7,
+                maxLines = 12,
+                isError = corsError != null,
+                supportingText = corsError?.let { { Text(it) } },
+                textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 180.dp),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                FilledTonalButton(
+                    onClick = {
+                        val policy = runCatching { json.decodeFromString(R2CorsPolicy.serializer(), corsText) }
+                            .onFailure { corsError = it.message ?: "Invalid JSON" }
+                            .getOrNull()
+                        if (policy != null) onSaveCors(policy)
+                    },
+                    enabled = canWrite && !state.isSaving,
+                    modifier = Modifier.weight(1f),
+                ) { Text(stringResource(R.string.common_save)) }
+                OutlinedButton(
+                    onClick = onDeleteCors,
+                    enabled = canWrite && !state.isSaving,
+                    modifier = Modifier.weight(1f),
+                ) { Text(stringResource(R.string.r2_cors_clear)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsBlock(
+    title: String,
+    content: @Composable () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = RoundedCornerShape(16.dp)) {
+            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                content()
+            }
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     }
 }
 

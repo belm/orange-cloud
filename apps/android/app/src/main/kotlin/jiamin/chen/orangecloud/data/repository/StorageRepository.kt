@@ -9,6 +9,10 @@ import jiamin.chen.orangecloud.data.model.KVKey
 import jiamin.chen.orangecloud.data.model.KVNamespace
 import jiamin.chen.orangecloud.data.model.R2Bucket
 import jiamin.chen.orangecloud.data.model.R2BucketList
+import jiamin.chen.orangecloud.data.model.R2CorsPolicy
+import jiamin.chen.orangecloud.data.model.R2CustomDomainList
+import jiamin.chen.orangecloud.data.model.R2ManagedDomain
+import jiamin.chen.orangecloud.data.model.R2ManagedDomainUpdate
 import jiamin.chen.orangecloud.data.model.R2Object
 import jiamin.chen.orangecloud.data.model.encodeStorageKey
 import javax.inject.Inject
@@ -28,10 +32,11 @@ class StorageRepository @Inject constructor(
         api.get<R2BucketList>("accounts/$accountId/r2/buckets", listOf("per_page" to "100")).buckets
 
     /** 对象列表（游标分页，一次一页）→ (对象, 下一页游标 or null)。 */
-    suspend fun listObjects(accountId: String, bucket: String, cursor: String?): Pair<List<R2Object>, String?> {
+    suspend fun listObjects(accountId: String, bucket: String, cursor: String?, prefix: String? = null): Pair<List<R2Object>, String?> {
         val query = buildList {
             add("per_page" to "100")
             cursor?.let { add("cursor" to it) }
+            prefix?.takeIf { it.isNotBlank() }?.let { add("prefix" to it) }
         }
         val paged = api.getList<R2Object>("accounts/$accountId/r2/buckets/$bucket/objects", query)
         val next = if (paged.info?.isTruncated == true) paged.info?.cursor else null
@@ -47,6 +52,30 @@ class StorageRepository @Inject constructor(
 
     suspend fun deleteObject(accountId: String, bucket: String, key: String) =
         api.delete("accounts/$accountId/r2/buckets/$bucket/objects/${encodeStorageKey(key)}")
+
+    suspend fun createFolder(accountId: String, bucket: String, prefix: String) =
+        putObject(accountId, bucket, prefix.trim('/').plus("/"), ByteArray(0), "application/x-directory")
+
+    suspend fun getManagedDomain(accountId: String, bucket: String): R2ManagedDomain =
+        api.get("accounts/$accountId/r2/buckets/$bucket/domains/managed")
+
+    suspend fun setManagedDomainEnabled(accountId: String, bucket: String, enabled: Boolean) =
+        api.putChecked("accounts/$accountId/r2/buckets/$bucket/domains/managed", R2ManagedDomainUpdate(enabled))
+
+    suspend fun listCustomDomains(accountId: String, bucket: String) =
+        api.get<R2CustomDomainList>("accounts/$accountId/r2/buckets/$bucket/domains/custom").domains
+
+    suspend fun removeCustomDomain(accountId: String, bucket: String, domain: String) =
+        api.delete("accounts/$accountId/r2/buckets/$bucket/domains/custom/${encodeStorageKey(domain)}")
+
+    suspend fun getCorsPolicy(accountId: String, bucket: String): R2CorsPolicy =
+        api.get("accounts/$accountId/r2/buckets/$bucket/cors")
+
+    suspend fun putCorsPolicy(accountId: String, bucket: String, policy: R2CorsPolicy) =
+        api.putChecked("accounts/$accountId/r2/buckets/$bucket/cors", policy)
+
+    suspend fun deleteCorsPolicy(accountId: String, bucket: String) =
+        api.delete("accounts/$accountId/r2/buckets/$bucket/cors")
 
     // MARK: - D1
 

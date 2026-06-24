@@ -31,6 +31,57 @@ data class R2Object(
 @Serializable
 data class R2HttpMetadata(val contentType: String? = null)  // R2 对象元数据是 camelCase
 
+@Serializable
+data class R2CorsPolicy(
+    val rules: List<R2CorsRule> = emptyList(),
+)
+
+@Serializable
+data class R2CorsRule(
+    val id: String? = null,
+    val allowed: R2CorsAllowed = R2CorsAllowed(),
+    val exposeHeaders: List<String>? = null,
+    val maxAgeSeconds: Int? = null,
+)
+
+@Serializable
+data class R2CorsAllowed(
+    val methods: List<String> = emptyList(),
+    val origins: List<String> = emptyList(),
+    val headers: List<String>? = null,
+)
+
+@Serializable
+data class R2ManagedDomain(
+    val bucketId: String? = null,
+    val domain: String = "",
+    val enabled: Boolean = false,
+)
+
+@Serializable
+data class R2ManagedDomainUpdate(
+    val enabled: Boolean,
+)
+
+@Serializable
+data class R2CustomDomainList(
+    val domains: List<R2CustomDomain> = emptyList(),
+)
+
+@Serializable
+data class R2CustomDomain(
+    val domain: String,
+    val enabled: Boolean = false,
+    val status: R2CustomDomainStatus? = null,
+    val minTLS: String? = null,
+)
+
+@Serializable
+data class R2CustomDomainStatus(
+    val ownership: String? = null,
+    val ssl: String? = null,
+)
+
 // MARK: - D1
 
 @Serializable
