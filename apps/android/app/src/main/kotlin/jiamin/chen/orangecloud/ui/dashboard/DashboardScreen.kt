@@ -29,12 +29,20 @@ import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.WarningAmber
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -73,6 +81,7 @@ fun DashboardScreen(
     onOpenWorkers: () -> Unit,
     onOpenStorage: () -> Unit,
     onOpenZone: (Zone) -> Unit,
+    onOpenResource: (DashboardResource) -> Unit,
     onAddAccount: () -> Unit,
     viewModel: DashboardViewModel = hiltViewModel(),
 ) {
@@ -81,6 +90,7 @@ fun DashboardScreen(
     val onSky = phase.onSky
     val cs = MaterialTheme.colorScheme
     var menuOpen by remember { mutableStateOf(false) }
+    var commandOpen by remember { mutableStateOf(false) }
     val todayLabel = remember {
         val locale = Locale.getDefault()
         val pattern = if (locale.language == Locale.CHINESE.language) "M月d日 EEEE" else "MMM d, EEEE"
@@ -127,6 +137,17 @@ fun DashboardScreen(
                         } else {
                             Icon(Icons.Outlined.Person, contentDescription = null, tint = onSky)
                         }
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    IconButton(
+                        onClick = { commandOpen = true },
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(15.dp))
+                            .background(cs.surfaceContainerHigh.copy(alpha = 0.62f))
+                            .border(1.dp, cs.outlineVariant.copy(alpha = 0.42f), RoundedCornerShape(15.dp)),
+                    ) {
+                        Icon(Icons.Outlined.Search, contentDescription = stringResource(R.string.dash_command), tint = onSky)
                     }
                 }
 
@@ -197,6 +218,24 @@ fun DashboardScreen(
                     }
                 }
 
+                if (state.pinnedResources.isNotEmpty()) {
+                    Text(
+                        stringResource(R.string.dash_pinned),
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = onSky,
+                        modifier = Modifier.padding(start = 24.dp, top = 26.dp, bottom = 10.dp),
+                    )
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        state.pinnedResources.forEach { resource ->
+                            ResourceChip(resource = resource, onClick = { onOpenResource(resource) }, onPin = { viewModel.togglePinned(resource) }, pinned = true)
+                        }
+                    }
+                }
+
                 Text(
                     stringResource(R.string.dash_ops_center),
                     fontSize = 22.sp,
@@ -210,6 +249,7 @@ fun DashboardScreen(
                         onOpenZones = onOpenZones,
                         onOpenTunnels = onOpenTunnels,
                     )
+                    AlertCenterCard(alerts = state.alerts)
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         UsageCard(
                             icon = Icons.Outlined.BarChart,
@@ -293,6 +333,19 @@ fun DashboardScreen(
                     onDismiss = { menuOpen = false },
                 )
             }
+
+            if (commandOpen) {
+                CommandSheet(
+                    resources = state.resources,
+                    pinnedIds = state.pinnedIds,
+                    onDismiss = { commandOpen = false },
+                    onOpen = {
+                        commandOpen = false
+                        onOpenResource(it)
+                    },
+                    onPin = viewModel::togglePinned,
+                )
+            }
         }
     }
 }
@@ -305,6 +358,103 @@ private fun timeGreeting(): Int {
         in 14..17 -> R.string.dash_greeting_afternoon
         else -> R.string.dash_greeting_evening
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CommandSheet(
+    resources: List<DashboardResource>,
+    pinnedIds: Set<String>,
+    onDismiss: () -> Unit,
+    onOpen: (DashboardResource) -> Unit,
+    onPin: (DashboardResource) -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(resources, query) {
+        if (query.isBlank()) resources.take(30)
+        else resources.filter {
+            it.title.contains(query, ignoreCase = true) ||
+                it.subtitle.contains(query, ignoreCase = true)
+        }.take(50)
+    }
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 30.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(stringResource(R.string.dash_command), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                singleLine = true,
+                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                placeholder = { Text(stringResource(R.string.dash_command_hint)) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            filtered.forEach { resource ->
+                ResourceRow(
+                    resource = resource,
+                    pinned = resource.encoded in pinnedIds,
+                    onOpen = { onOpen(resource) },
+                    onPin = { onPin(resource) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ResourceRow(
+    resource: DashboardResource,
+    pinned: Boolean,
+    onOpen: () -> Unit,
+    onPin: () -> Unit,
+) {
+    val cs = MaterialTheme.colorScheme
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onOpen).background(cs.surfaceContainerLow, RoundedCornerShape(14.dp)).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(resourceIcon(resource.type), contentDescription = null, tint = cs.primary, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(resource.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = cs.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(resource.subtitle, fontSize = 12.sp, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        IconButton(onClick = onPin) {
+            Icon(if (pinned) Icons.Outlined.Star else Icons.Outlined.StarBorder, contentDescription = stringResource(R.string.dash_pin), tint = if (pinned) OcSuccess else cs.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun ResourceChip(
+    resource: DashboardResource,
+    pinned: Boolean,
+    onClick: () -> Unit,
+    onPin: () -> Unit,
+) {
+    val cs = MaterialTheme.colorScheme
+    Row(
+        Modifier.clickable(onClick = onClick).background(cs.surfaceContainerLow, RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(resourceIcon(resource.type), contentDescription = null, tint = cs.primary, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Column(Modifier.width(150.dp)) {
+            Text(resource.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = cs.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(resource.subtitle, fontSize = 11.sp, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        IconButton(onClick = onPin, modifier = Modifier.size(32.dp)) {
+            Icon(if (pinned) Icons.Outlined.Star else Icons.Outlined.StarBorder, contentDescription = stringResource(R.string.dash_pin), tint = if (pinned) OcSuccess else cs.onSurfaceVariant, modifier = Modifier.size(17.dp))
+        }
+    }
+}
+
+private fun resourceIcon(type: DashboardResourceType) = when (type) {
+    DashboardResourceType.Zone -> Icons.Outlined.Language
+    DashboardResourceType.Worker -> Icons.Outlined.Bolt
+    DashboardResourceType.R2Bucket -> Icons.Outlined.Cloud
+    DashboardResourceType.D1Database -> Icons.Outlined.Storage
+    DashboardResourceType.KVNamespace -> Icons.Outlined.Storage
+    DashboardResourceType.Tunnel -> Icons.Outlined.Hub
 }
 
 @Composable
@@ -361,6 +511,37 @@ private fun OperationsCard(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 QuickAction(Icons.Outlined.Language, stringResource(R.string.nav_zones), onOpenZones)
                 QuickAction(Icons.Outlined.Hub, stringResource(R.string.nav_tunnels), onOpenTunnels)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AlertCenterCard(alerts: List<AlertItem>) {
+    val cs = MaterialTheme.colorScheme
+    Surface(color = cs.surfaceContainerLow.copy(alpha = 0.82f), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.WarningAmber, contentDescription = null, tint = cs.primary, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.dash_alert_center), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = cs.onSurface)
+            }
+            alerts.take(5).forEach { alert ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    StatusDot(
+                        when (alert.severity) {
+                            "critical" -> cs.error
+                            "warn" -> Color(0xFFF5A623)
+                            "ok" -> OcSuccess
+                            else -> cs.primary
+                        },
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(alert.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = cs.onSurface)
+                        Text(alert.detail, fontSize = 12.sp, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
             }
         }
     }

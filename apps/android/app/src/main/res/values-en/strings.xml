@@ -306,6 +306,11 @@
     <string name="dash_view_all">View all</string>
     <string name="dash_quick">Quick actions</string>
     <string name="dash_refresh">Refresh status</string>
+    <string name="dash_command">Search / command</string>
+    <string name="dash_command_hint">Search domains, Workers, R2, D1, KV, Tunnels</string>
+    <string name="dash_pinned">Pinned resources</string>
+    <string name="dash_pin">Pin</string>
+    <string name="dash_alert_center">Alert center</string>
     <string name="dash_switch_account">Switch account</string>
     <string name="dash_add_account">Add account</string>
 

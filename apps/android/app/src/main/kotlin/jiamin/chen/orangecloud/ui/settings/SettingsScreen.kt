@@ -1,10 +1,7 @@
 package jiamin.chen.orangecloud.ui.settings
 
 import android.Manifest
-import android.content.Intent
-import android.net.Uri
 import android.os.Build
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -26,17 +23,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
-import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.Code
-import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.MonitorHeart
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.PrivacyTip
-import androidx.compose.material.icons.outlined.Star
-import androidx.compose.material.icons.outlined.Verified
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -71,7 +61,6 @@ import jiamin.chen.orangecloud.core.design.rememberSkyPhase
 import jiamin.chen.orangecloud.core.design.theme.OcOrange
 import jiamin.chen.orangecloud.core.design.theme.OcSuccess
 import jiamin.chen.orangecloud.core.system.AppAppearance
-import jiamin.chen.orangecloud.core.util.launchCustomTab
 
 @Composable
 fun SettingsScreen(
@@ -85,7 +74,6 @@ fun SettingsScreen(
     val phase = rememberSkyPhase()
     val onSky = phase.onSky
     val cs = MaterialTheme.colorScheme
-    val context = LocalContext.current
 
     val notifPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         viewModel.setNotificationsEnabled(granted)
@@ -97,29 +85,6 @@ fun SettingsScreen(
             viewModel.setNotificationsEnabled(on)
         }
     }
-    fun openUrl(url: String) = context.launchCustomTab(Uri.parse(url))
-
-    // 帮助与反馈：邮件 intent，正文预填诊断头（版本/系统/设备/账号数），不含任何令牌或密钥。
-    val feedbackSubject = stringResource(R.string.feedback_subject)
-    val noMailMsg = stringResource(R.string.feedback_no_mail)
-    fun sendFeedback() {
-        val diag = buildString {
-            append("\n\n---\n")
-            append("App ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n")
-            append("Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})\n")
-            append("${Build.MANUFACTURER} ${Build.MODEL}\n")
-            append("Accounts: ${state.sessions.size}")
-        }
-        val intent = Intent(Intent.ACTION_SENDTO).apply {
-            data = Uri.parse("mailto:")
-            putExtra(Intent.EXTRA_EMAIL, arrayOf("orange-cloud@hz.do"))
-            putExtra(Intent.EXTRA_SUBJECT, feedbackSubject)
-            putExtra(Intent.EXTRA_TEXT, diag)
-        }
-        runCatching { context.startActivity(intent) }
-            .onFailure { Toast.makeText(context, noMailMsg, Toast.LENGTH_SHORT).show() }
-    }
-
     SkyBackground(phase = phase) {
         Column(
             modifier = Modifier.fillMaxSize().systemBarsPadding().verticalScroll(rememberScrollState()),
@@ -172,31 +137,6 @@ fun SettingsScreen(
                 }
             }
 
-            // ── Orange Cloud Pro（oss 风味无此入口）──
-            if (!viewModel.isOss) {
-                SettingsSection(null, null) {
-                    Row(
-                        Modifier.fillMaxWidth().clickable(onClick = onOpenPaywall).padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        TintIcon(Icons.Outlined.AutoAwesome, OcOrange, size = 38.dp)
-                        Spacer(Modifier.width(14.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(stringResource(R.string.settings_pro), fontSize = 16.sp, color = cs.onSurface)
-                            Text(
-                                stringResource(if (state.isPro) R.string.settings_pro_unlocked else R.string.settings_pro_sub),
-                                fontSize = 13.sp, color = cs.onSurfaceVariant,
-                            )
-                        }
-                        if (state.isPro) {
-                            Icon(Icons.Outlined.Verified, contentDescription = null, tint = cs.primary)
-                        } else {
-                            Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = null, tint = cs.onSurfaceVariant)
-                        }
-                    }
-                }
-            }
-
             // ── 外观 ──
             SettingsSection(stringResource(R.string.settings_appearance), null) {
                 AppearancePicker(state.appearance) { viewModel.setAppearance(it) }
@@ -221,12 +161,7 @@ fun SettingsScreen(
                 NavRow(Icons.Outlined.MonitorHeart, OcSuccess, stringResource(R.string.status_title), onOpenStatus)
             }
 
-            // ── 帮助与反馈 ──
-            SettingsSection(stringResource(R.string.settings_help), stringResource(R.string.settings_help_footer)) {
-                NavRow(Icons.Outlined.Email, Color(0xFF3D86E0), stringResource(R.string.settings_feedback)) { sendFeedback() }
-            }
-
-            // ── 关于 ──
+            // ── 版本 ──
             SettingsSection(stringResource(R.string.settings_about), null) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     TintIcon(Icons.Outlined.Info, Color(0xFF3D86E0), size = 38.dp)
@@ -234,17 +169,6 @@ fun SettingsScreen(
                     Text(stringResource(R.string.settings_version), fontSize = 16.sp, color = cs.onSurface, modifier = Modifier.weight(1f))
                     Text("${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", fontSize = 14.sp, color = cs.onSurfaceVariant)
                 }
-                RowDivider(indent = true)
-                LinkRow(Icons.Outlined.Star, Color(0xFFE0A800), stringResource(R.string.settings_rate)) {
-                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=jiamin.chen.orangecloud"))) }
-                        .onFailure { openUrl("https://play.google.com/store/apps/details?id=jiamin.chen.orangecloud") }
-                }
-                RowDivider(indent = true)
-                LinkRow(Icons.Outlined.Code, cs.onSurfaceVariant, stringResource(R.string.settings_github)) { openUrl("https://github.com/chen2he/orange-cloud") }
-                RowDivider(indent = true)
-                LinkRow(Icons.Outlined.PrivacyTip, cs.onSurfaceVariant, stringResource(R.string.settings_privacy)) { openUrl("https://orange-cloud.chatiro.app/privacy") }
-                RowDivider(indent = true)
-                LinkRow(Icons.Outlined.Description, cs.onSurfaceVariant, stringResource(R.string.settings_terms)) { openUrl("https://orange-cloud.chatiro.app/terms") }
             }
 
             Text(
@@ -282,17 +206,6 @@ private fun NavRow(icon: ImageVector, iconColor: Color, title: String, onClick: 
         Spacer(Modifier.width(14.dp))
         Text(title, fontSize = 16.sp, color = cs.onSurface, modifier = Modifier.weight(1f))
         Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = null, tint = cs.onSurfaceVariant)
-    }
-}
-
-@Composable
-private fun LinkRow(icon: ImageVector, iconColor: Color, title: String, onClick: () -> Unit) {
-    val cs = MaterialTheme.colorScheme
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        TintIcon(icon, iconColor, size = 38.dp)
-        Spacer(Modifier.width(14.dp))
-        Text(title, fontSize = 16.sp, color = cs.onSurface, modifier = Modifier.weight(1f))
-        Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, tint = cs.onSurfaceVariant, modifier = Modifier.size(16.dp))
     }
 }
 

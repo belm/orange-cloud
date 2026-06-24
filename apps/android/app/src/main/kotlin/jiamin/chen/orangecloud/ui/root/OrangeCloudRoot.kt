@@ -45,6 +45,8 @@ import jiamin.chen.orangecloud.core.design.SkyBackground
 import jiamin.chen.orangecloud.core.design.SkyPhase
 import jiamin.chen.orangecloud.ui.analytics.ZoneAnalyticsScreen
 import jiamin.chen.orangecloud.ui.dashboard.DashboardScreen
+import jiamin.chen.orangecloud.ui.dashboard.DashboardResource
+import jiamin.chen.orangecloud.ui.dashboard.DashboardResourceType
 import jiamin.chen.orangecloud.ui.dns.DnsListScreen
 import jiamin.chen.orangecloud.ui.network.TunnelDetailScreen
 import jiamin.chen.orangecloud.ui.network.TunnelListScreen
@@ -208,6 +210,16 @@ private fun MainScaffold() {
             restoreState = true
         }
     }
+    fun openResource(resource: DashboardResource) {
+        when (resource.type) {
+            DashboardResourceType.Zone -> navController.navigate(Dest.zoneDetail(resource.id, resource.title))
+            DashboardResourceType.Worker -> navController.navigate(Dest.worker(resource.id))
+            DashboardResourceType.R2Bucket -> navController.navigate(Dest.r2Objects(resource.id))
+            DashboardResourceType.D1Database -> navController.navigate(Dest.d1Query(resource.id, resource.title))
+            DashboardResourceType.KVNamespace -> navController.navigate(Dest.kvKeys(resource.id, resource.title))
+            DashboardResourceType.Tunnel -> navController.navigate(Dest.tunnelDetail(resource.id, resource.title))
+        }
+    }
 
     NavigationSuiteScaffold(
         navigationSuiteItems = {
@@ -229,6 +241,7 @@ private fun MainScaffold() {
                     onOpenWorkers = { navigateTop(TopDestination.Workers) },
                     onOpenStorage = { navigateTop(TopDestination.Storage) },
                     onOpenZone = { zone -> navController.navigate(Dest.zoneDetail(zone.id, zone.name)) },
+                    onOpenResource = ::openResource,
                     onAddAccount = onAddAccount,
                 )
             }

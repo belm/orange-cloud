@@ -312,6 +312,11 @@
     <string name="dash_view_all">查看全部</string>
     <string name="dash_quick">快捷操作</string>
     <string name="dash_refresh">刷新状态</string>
+    <string name="dash_command">搜索/命令</string>
+    <string name="dash_command_hint">搜索域名、Worker、R2、D1、KV、Tunnel</string>
+    <string name="dash_pinned">固定资源</string>
+    <string name="dash_pin">固定</string>
+    <string name="dash_alert_center">告警中心</string>
     <string name="dash_switch_account">切换账号</string>
     <string name="dash_add_account">添加账号</string>
 
