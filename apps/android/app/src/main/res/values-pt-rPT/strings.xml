@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Português (Portugal) -->
 <resources>
-    <string name="app_name">Orange Cloud</string>
+    <string name="app_name">Cloudflare</string>
 
     <string name="greeting_dawn">Bom dia</string>
     <string name="greeting_day">Boa tarde</string>

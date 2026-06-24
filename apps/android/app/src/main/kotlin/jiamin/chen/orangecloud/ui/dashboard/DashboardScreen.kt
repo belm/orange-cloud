@@ -23,11 +23,14 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -194,6 +197,47 @@ fun DashboardScreen(
                     }
                 }
 
+                Text(
+                    stringResource(R.string.dash_ops_center),
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = onSky,
+                    modifier = Modifier.padding(start = 24.dp, top = 26.dp, bottom = 10.dp),
+                )
+                Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OperationsCard(
+                        attentionItems = state.attentionItems,
+                        onOpenZones = onOpenZones,
+                        onOpenTunnels = onOpenTunnels,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        UsageCard(
+                            icon = Icons.Outlined.BarChart,
+                            label = stringResource(R.string.dash_usage_requests),
+                            value = state.requestsToday,
+                            caption = stringResource(R.string.dash_usage_requests_caption),
+                            modifier = Modifier.weight(1f),
+                            onClick = onOpenZones,
+                        )
+                        UsageCard(
+                            icon = Icons.Outlined.Storage,
+                            label = stringResource(R.string.dash_usage_r2_storage),
+                            value = state.r2Storage,
+                            caption = stringResource(R.string.dash_usage_r2_month, state.r2RequestsMonth),
+                            modifier = Modifier.weight(1f),
+                            onClick = onOpenStorage,
+                        )
+                    }
+                    UsageCard(
+                        icon = Icons.Outlined.Hub,
+                        label = stringResource(R.string.nav_tunnels),
+                        value = state.tunnelHealthy,
+                        caption = stringResource(R.string.dash_tunnel_caption, state.tunnelCount),
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = onOpenTunnels,
+                    )
+                }
+
                 // 最近访问
                 Row(
                     Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, top = 26.dp, bottom = 10.dp),
@@ -260,6 +304,93 @@ private fun timeGreeting(): Int {
         in 11..13 -> R.string.dash_greeting_noon
         in 14..17 -> R.string.dash_greeting_afternoon
         else -> R.string.dash_greeting_evening
+    }
+}
+
+@Composable
+private fun OperationsCard(
+    attentionItems: List<String>,
+    onOpenZones: () -> Unit,
+    onOpenTunnels: () -> Unit,
+) {
+    val cs = MaterialTheme.colorScheme
+    val isHealthy = attentionItems.size == 1 && attentionItems.first().contains("正常")
+    Surface(
+        color = cs.surfaceContainerLow.copy(alpha = 0.82f),
+        shape = RoundedCornerShape(22.dp),
+        modifier = Modifier.fillMaxWidth(),
+        tonalElevation = 1.dp,
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(42.dp).background(
+                        if (isHealthy) OcSuccess.copy(alpha = 0.14f) else Color(0xFFF5A623).copy(alpha = 0.16f),
+                        RoundedCornerShape(14.dp),
+                    ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        if (isHealthy) Icons.Outlined.CheckCircle else Icons.Outlined.WarningAmber,
+                        contentDescription = null,
+                        tint = if (isHealthy) OcSuccess else Color(0xFFF5A623),
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        stringResource(if (isHealthy) R.string.dash_ops_healthy else R.string.dash_ops_attention),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = cs.onSurface,
+                    )
+                    Text(
+                        stringResource(R.string.dash_ops_subtitle),
+                        fontSize = 12.5.sp,
+                        color = cs.onSurfaceVariant,
+                    )
+                }
+            }
+            attentionItems.take(3).forEach { item ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    StatusDot(if (isHealthy) OcSuccess else Color(0xFFF5A623))
+                    Spacer(Modifier.width(8.dp))
+                    Text(item, color = cs.onSurfaceVariant, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                QuickAction(Icons.Outlined.Language, stringResource(R.string.nav_zones), onOpenZones)
+                QuickAction(Icons.Outlined.Hub, stringResource(R.string.nav_tunnels), onOpenTunnels)
+            }
+        }
+    }
+}
+
+@Composable
+private fun UsageCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String,
+    caption: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val cs = MaterialTheme.colorScheme
+    Surface(
+        color = cs.surfaceContainerLow.copy(alpha = 0.82f),
+        shape = RoundedCornerShape(18.dp),
+        modifier = modifier.clickable(onClick = onClick),
+        tonalElevation = 1.dp,
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, contentDescription = null, tint = cs.primary, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(label, fontSize = 13.sp, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Text(value, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = cs.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(caption, fontSize = 12.sp, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 

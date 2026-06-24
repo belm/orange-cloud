@@ -174,6 +174,8 @@ sealed interface R2Event {
     data object Deleted : R2Event
     data object FolderCreated : R2Event
     data object SettingsSaved : R2Event
+    data object ObjectCopied : R2Event
+    data object ObjectMoved : R2Event
     data class Error(val message: String?) : R2Event
 }
 
@@ -197,6 +199,7 @@ data class R2ObjectUiState(
     val uploadName: String? = null,
     val uploadProgress: Float? = null,
     val isDownloading: Boolean = false,
+    val isObjectMutating: Boolean = false,
     val isBatchDeleting: Boolean = false,
     val isCreatingFolder: Boolean = false,
     val hasError: Boolean = false,
@@ -228,7 +231,10 @@ class R2ObjectListViewModel @Inject constructor(
     val events: Flow<R2Event> = eventChannel.receiveAsFlow()
 
     init {
-        if (hasScope) loadFirst()
+        if (hasScope) {
+            loadFirst()
+            loadSettings()
+        }
     }
 
     fun loadFirst() {
@@ -379,6 +385,37 @@ class R2ObjectListViewModel @Inject constructor(
                 eventChannel.send(R2Event.Error(e.message))
             } finally {
                 _uiState.update { it.copy(isBatchDeleting = false) }
+            }
+        }
+    }
+
+    fun copyObject(sourceKey: String, destinationKey: String, contentType: String?) {
+        mutateObject(sourceKey, destinationKey, contentType, move = false)
+    }
+
+    fun moveObject(sourceKey: String, destinationKey: String, contentType: String?) {
+        mutateObject(sourceKey, destinationKey, contentType, move = true)
+    }
+
+    private fun mutateObject(sourceKey: String, destinationKey: String, contentType: String?, move: Boolean) {
+        if (!canWrite || destinationKey.isBlank() || sourceKey == destinationKey) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isObjectMutating = true) }
+            try {
+                val accountId = accountStore.selectedAccountId.value ?: error("no account")
+                val type = contentType ?: "application/octet-stream"
+                if (move) {
+                    storageRepository.moveObject(accountId, bucket, sourceKey, destinationKey.trimStart('/'), type)
+                    eventChannel.send(R2Event.ObjectMoved)
+                } else {
+                    storageRepository.copyObject(accountId, bucket, sourceKey, destinationKey.trimStart('/'), type)
+                    eventChannel.send(R2Event.ObjectCopied)
+                }
+                loadFirst()
+            } catch (e: Exception) {
+                eventChannel.send(R2Event.Error(e.message))
+            } finally {
+                _uiState.update { it.copy(isObjectMutating = false) }
             }
         }
     }

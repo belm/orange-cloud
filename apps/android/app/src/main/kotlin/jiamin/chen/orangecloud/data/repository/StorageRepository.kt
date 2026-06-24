@@ -53,6 +53,16 @@ class StorageRepository @Inject constructor(
     suspend fun deleteObject(accountId: String, bucket: String, key: String) =
         api.delete("accounts/$accountId/r2/buckets/$bucket/objects/${encodeStorageKey(key)}")
 
+    suspend fun copyObject(accountId: String, bucket: String, sourceKey: String, destinationKey: String, contentType: String) {
+        val bytes = getObjectBytes(accountId, bucket, sourceKey)
+        putObject(accountId, bucket, destinationKey, bytes, contentType)
+    }
+
+    suspend fun moveObject(accountId: String, bucket: String, sourceKey: String, destinationKey: String, contentType: String) {
+        copyObject(accountId, bucket, sourceKey, destinationKey, contentType)
+        deleteObject(accountId, bucket, sourceKey)
+    }
+
     suspend fun createFolder(accountId: String, bucket: String, prefix: String) =
         putObject(accountId, bucket, prefix.trim('/').plus("/"), ByteArray(0), "application/x-directory")
 

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Español (Latinoamérica), alineado con iOS es-MX -->
 <resources>
-    <string name="app_name">Orange Cloud</string>
+    <string name="app_name">Cloudflare</string>
 
     <string name="greeting_dawn">Buenos días</string>
     <string name="greeting_day">Buenas tardes</string>

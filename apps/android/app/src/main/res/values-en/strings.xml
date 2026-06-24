@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Orange Cloud</string>
+    <string name="app_name">Cloudflare</string>
 
     <!-- Daybreak greetings -->
     <string name="greeting_dawn">Good morning</string>
@@ -78,6 +78,7 @@
     <string name="storage_r2">R2 buckets</string>
     <string name="storage_d1">D1 databases</string>
     <string name="storage_kv">KV namespaces</string>
+    <string name="nav_tunnels">Tunnels</string>
     <string name="r2_empty">No buckets yet</string>
     <string name="r2_objects_empty">This bucket is empty</string>
     <string name="r2_upload">Upload</string>
@@ -107,6 +108,17 @@
     <string name="r2_uploading">Uploading</string>
     <string name="r2_bucket_settings">Bucket settings</string>
     <string name="r2_settings_saved">Settings saved</string>
+    <string name="r2_object_copied">Object copied</string>
+    <string name="r2_object_moved">Object moved</string>
+    <string name="r2_url_copied">URL copied</string>
+    <string name="r2_preview">Preview</string>
+    <string name="r2_preview_too_large">File is over 1 MB. Download it to view.</string>
+    <string name="r2_preview_unavailable">Preview is not available for this object</string>
+    <string name="r2_copy_url">Copy URL</string>
+    <string name="r2_copy_object">Copy object</string>
+    <string name="r2_move_object">Move object</string>
+    <string name="r2_rename_object">Rename object</string>
+    <string name="r2_destination_key">Destination key</string>
     <string name="r2_managed_domain">r2.dev public access</string>
     <string name="r2_domain_unavailable">Domain unavailable</string>
     <string name="r2_custom_domains">Custom domains</string>
@@ -269,6 +281,13 @@
     <string name="dash_usage_requests_caption">Domain traffic summary</string>
     <string name="dash_usage_r2">R2 · buckets</string>
     <string name="dash_usage_r2_caption">Created buckets</string>
+    <string name="dash_usage_r2_storage">R2 · storage</string>
+    <string name="dash_usage_r2_month">%1$s requests this month</string>
+    <string name="dash_ops_center">Operations</string>
+    <string name="dash_ops_healthy">Healthy</string>
+    <string name="dash_ops_attention">Needs attention</string>
+    <string name="dash_ops_subtitle">Domains, tunnels, and core resources</string>
+    <string name="dash_tunnel_caption">%1$s tunnels total</string>
     <string name="dash_recent">Recent</string>
     <string name="dash_view_all">View all</string>
     <string name="dash_quick">Quick actions</string>

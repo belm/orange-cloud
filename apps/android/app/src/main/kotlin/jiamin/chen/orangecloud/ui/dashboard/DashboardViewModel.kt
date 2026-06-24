@@ -10,6 +10,7 @@ import jiamin.chen.orangecloud.data.model.AnalyticsTimeRange
 import jiamin.chen.orangecloud.data.model.Zone
 import jiamin.chen.orangecloud.data.repository.AccountStore
 import jiamin.chen.orangecloud.data.repository.AnalyticsRepository
+import jiamin.chen.orangecloud.data.repository.SecurityRepository
 import jiamin.chen.orangecloud.data.repository.StorageRepository
 import jiamin.chen.orangecloud.data.repository.WorkerRepository
 import jiamin.chen.orangecloud.data.repository.ZoneRepository
@@ -34,6 +35,11 @@ data class DashboardUiState(
     val workerCount: String = "—",
     val bucketCount: String = "—",
     val requestsToday: String = "—",
+    val r2Storage: String = "—",
+    val r2RequestsMonth: String = "—",
+    val tunnelCount: String = "—",
+    val tunnelHealthy: String = "—",
+    val attentionItems: List<String> = emptyList(),
     val recentZones: List<Zone> = emptyList(),
     val isLoading: Boolean = false,
 )
@@ -47,6 +53,7 @@ class DashboardViewModel @Inject constructor(
     private val workerRepository: WorkerRepository,
     private val storageRepository: StorageRepository,
     private val analyticsRepository: AnalyticsRepository,
+    private val securityRepository: SecurityRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState(isLoading = true))
@@ -106,12 +113,54 @@ class DashboardViewModel @Inject constructor(
                         runCatching { storageRepository.listBuckets(accountId).size }.getOrNull()
                     } else null
                 }
+                val r2Usage = async {
+                    if (authRepository.hasScope(Scopes.ACCOUNT_ANALYTICS_READ)) {
+                        runCatching { analyticsRepository.r2UsageByBucket(accountId).values.toList() }.getOrNull()
+                    } else null
+                }
+                val tunnels = async {
+                    if (authRepository.hasScope(Scopes.TUNNEL_READ)) {
+                        runCatching { securityRepository.listTunnels(accountId) }.getOrNull()
+                    } else null
+                }
                 val requests = async { sumRequests(zones) }
 
                 workers.await()
                 val workerList = workerRepository.observeWorkers(accountId).first()
                 _uiState.update { it.copy(workerCount = workerList.size.toString()) }
                 buckets.await()?.let { count -> _uiState.update { st -> st.copy(bucketCount = count.toString()) } }
+                r2Usage.await()?.let { usage ->
+                    val totalStorage = usage.sumOf { it.storageBytes }
+                    val totalRequests = usage.sumOf { it.totalRequests }
+                    _uiState.update { st ->
+                        st.copy(
+                            r2Storage = formatBytes(totalStorage),
+                            r2RequestsMonth = formatCount(totalRequests),
+                        )
+                    }
+                }
+                tunnels.await()?.let { list ->
+                    val healthy = list.count { it.status == "healthy" }
+                    _uiState.update { st ->
+                        st.copy(
+                            tunnelCount = list.size.toString(),
+                            tunnelHealthy = "$healthy/${list.size}",
+                            attentionItems = buildAttentionItems(
+                                inactiveZones = zones.count { !it.isActive },
+                                tunnelIssues = list.count { it.status != "healthy" },
+                                workerCount = workerList.size,
+                            ),
+                        )
+                    }
+                } ?: _uiState.update { st ->
+                    st.copy(
+                        attentionItems = buildAttentionItems(
+                            inactiveZones = zones.count { !it.isActive },
+                            tunnelIssues = 0,
+                            workerCount = workerList.size,
+                        ),
+                    )
+                }
                 requests.await()?.let { req -> _uiState.update { st -> st.copy(requestsToday = req) } }
             } catch (e: Exception) {
                 // 顶层失败不致命，保留已有数据
@@ -140,5 +189,24 @@ class DashboardViewModel @Inject constructor(
         n >= 1_000_000 -> "%.2fM".format(n / 1_000_000.0)
         n >= 1_000 -> "%.1fK".format(n / 1_000.0)
         else -> n.toString()
+    }
+
+    private fun formatBytes(bytes: Long): String {
+        if (bytes < 1024) return "$bytes B"
+        val units = listOf("KB", "MB", "GB", "TB", "PB")
+        var value = bytes.toDouble() / 1024
+        var index = 0
+        while (value >= 1024 && index < units.lastIndex) {
+            value /= 1024
+            index++
+        }
+        return "%.1f %s".format(value, units[index])
+    }
+
+    private fun buildAttentionItems(inactiveZones: Int, tunnelIssues: Int, workerCount: Int): List<String> = buildList {
+        if (inactiveZones > 0) add("有 $inactiveZones 个域名未激活")
+        if (tunnelIssues > 0) add("有 $tunnelIssues 条 Tunnel 需要检查")
+        if (workerCount == 0) add("当前账号还没有 Worker")
+        if (isEmpty()) add("核心服务状态正常")
     }
 }

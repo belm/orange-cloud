@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Storage
@@ -91,6 +92,7 @@ private enum class TopDestination(val labelRes: Int, val icon: ImageVector) {
     Zones(R.string.nav_zones, Icons.Outlined.Language),
     Workers(R.string.nav_workers, Icons.Outlined.Bolt),
     Storage(R.string.nav_storage, Icons.Outlined.Storage),
+    Tunnels(R.string.nav_tunnels, Icons.Outlined.Hub),
     Settings(R.string.nav_settings, Icons.Outlined.Settings),
 }
 
@@ -150,7 +152,8 @@ private object Dest {
 
     /** 路由 → 高亮的顶级标签（下钻页归属其父标签）。 */
     fun topOf(route: String?): TopDestination = when {
-        route == DASHBOARD || route == TUNNELS || route?.startsWith("tunnel/") == true -> TopDestination.Dashboard
+        route == DASHBOARD -> TopDestination.Dashboard
+        route == TUNNELS || route?.startsWith("tunnel/") == true -> TopDestination.Tunnels
         route == SETTINGS || route == STATUS || route?.startsWith("identity/") == true -> TopDestination.Settings
         route == WORKERS || route?.startsWith("worker/") == true || route?.startsWith("tail/") == true ->
             TopDestination.Workers
@@ -164,6 +167,7 @@ private object Dest {
         TopDestination.Zones -> ZONES
         TopDestination.Workers -> WORKERS
         TopDestination.Storage -> STORAGE
+        TopDestination.Tunnels -> TUNNELS
         TopDestination.Settings -> SETTINGS
     }
 }
@@ -220,7 +224,7 @@ private fun MainScaffold() {
         NavHost(navController = navController, startDestination = Dest.DASHBOARD) {
             composable(Dest.DASHBOARD) {
                 DashboardScreen(
-                    onOpenTunnels = { navController.navigate(Dest.TUNNELS) },
+                    onOpenTunnels = { navigateTop(TopDestination.Tunnels) },
                     onOpenZones = { navigateTop(TopDestination.Zones) },
                     onOpenWorkers = { navigateTop(TopDestination.Workers) },
                     onOpenStorage = { navigateTop(TopDestination.Storage) },

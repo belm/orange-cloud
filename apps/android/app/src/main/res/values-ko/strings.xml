@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Orange Cloud</string>
+    <string name="app_name">Cloudflare</string>
 
     <string name="greeting_dawn">좋은 아침이에요</string>
     <string name="greeting_day">안녕하세요</string>

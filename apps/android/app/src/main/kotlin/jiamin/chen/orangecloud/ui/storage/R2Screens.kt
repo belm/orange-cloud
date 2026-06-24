@@ -31,6 +31,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
+import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -38,8 +39,10 @@ import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.DriveFileRenameOutline
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Preview
 import androidx.compose.material.icons.outlined.QueryStats
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
@@ -277,6 +280,13 @@ fun R2ObjectListScreen(
     val noAppMsg = stringResource(R.string.r2_no_app)
     val folderCreatedMsg = stringResource(R.string.r2_folder_created)
     val settingsSavedMsg = stringResource(R.string.r2_settings_saved)
+    val copiedMsg = stringResource(R.string.r2_object_copied)
+    val movedMsg = stringResource(R.string.r2_object_moved)
+    val copiedUrlMsg = stringResource(R.string.r2_url_copied)
+    val previewTooLargeMsg = stringResource(R.string.r2_preview_too_large)
+    val previewUnavailableMsg = stringResource(R.string.r2_preview_unavailable)
+    var previewTitle by remember { mutableStateOf("") }
+    var previewText by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -285,6 +295,8 @@ fun R2ObjectListScreen(
                 R2Event.Deleted -> { detailObject = null; snackbarHostState.showSnackbar(deletedMsg) }
                 R2Event.FolderCreated -> snackbarHostState.showSnackbar(folderCreatedMsg)
                 R2Event.SettingsSaved -> snackbarHostState.showSnackbar(settingsSavedMsg)
+                R2Event.ObjectCopied -> { detailObject = null; snackbarHostState.showSnackbar(copiedMsg) }
+                R2Event.ObjectMoved -> { detailObject = null; snackbarHostState.showSnackbar(movedMsg) }
                 is R2Event.Error -> snackbarHostState.showSnackbar(event.message ?: noAppMsg)
             }
         }
@@ -328,6 +340,23 @@ fun R2ObjectListScreen(
             }
             runCatching { context.startActivity(intent) }.onFailure {
                 snackbarHostState.showSnackbar(noAppMsg)
+            }
+        }
+    }
+
+    fun previewObject(obj: R2Object) {
+        scope.launch {
+            val size = obj.size ?: 0L
+            if (size > 1_048_576L) {
+                snackbarHostState.showSnackbar(previewTooLargeMsg)
+                return@launch
+            }
+            val bytes = viewModel.objectBytes(obj.key) ?: return@launch
+            val text = runCatching { bytes.toString(Charsets.UTF_8).takeIf { it.isNotBlank() } }.getOrNull()
+            if (text == null) snackbarHostState.showSnackbar(previewUnavailableMsg)
+            else {
+                previewTitle = obj.key
+                previewText = text
             }
         }
     }
@@ -489,9 +518,28 @@ fun R2ObjectListScreen(
                 obj = obj,
                 canWrite = state.canWrite,
                 isDownloading = state.isDownloading,
+                isMutating = state.isObjectMutating,
+                publicHost = state.settings.customDomains.firstOrNull { it.enabled }?.domain
+                    ?: state.settings.managedDomain?.takeIf { it.enabled }?.domain,
                 onOpen = { openObject(obj) },
+                onPreview = { previewObject(obj) },
+                onCopyUrl = { host ->
+                    copyToClipboard(context, "https://$host/${obj.key}")
+                    scope.launch { snackbarHostState.showSnackbar(copiedUrlMsg) }
+                },
+                onCopyObject = { destination -> viewModel.copyObject(obj.key, destination, obj.httpMetadata?.contentType) },
+                onMoveObject = { destination -> viewModel.moveObject(obj.key, destination, obj.httpMetadata?.contentType) },
                 onDelete = { viewModel.delete(obj.key) },
             )
+        }
+    }
+
+    previewText?.let { text ->
+        ModalBottomSheet(
+            onDismissRequest = { previewText = null },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        ) {
+            ObjectPreviewSheet(title = previewTitle, text = text)
         }
     }
 }
@@ -791,10 +839,17 @@ private fun ObjectDetail(
     obj: R2Object,
     canWrite: Boolean,
     isDownloading: Boolean,
+    isMutating: Boolean,
+    publicHost: String?,
     onOpen: () -> Unit,
+    onPreview: () -> Unit,
+    onCopyUrl: (String) -> Unit,
+    onCopyObject: (String) -> Unit,
+    onMoveObject: (String) -> Unit,
     onDelete: () -> Unit,
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
+    var action by remember { mutableStateOf<R2ObjectAction?>(null) }
     Column(
         Modifier
             .fillMaxWidth()
@@ -817,6 +872,19 @@ private fun ObjectDetail(
 
         Spacer(Modifier.height(4.dp))
 
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onPreview, enabled = !isDownloading, modifier = Modifier.weight(1f)) {
+                Icon(Icons.Outlined.Preview, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.r2_preview))
+            }
+            OutlinedButton(onClick = { publicHost?.let(onCopyUrl) }, enabled = !publicHost.isNullOrBlank(), modifier = Modifier.weight(1f)) {
+                Icon(Icons.Outlined.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.r2_copy_url))
+            }
+        }
+
         Button(
             onClick = onOpen,
             enabled = !isDownloading,
@@ -833,6 +901,23 @@ private fun ObjectDetail(
         }
 
         if (canWrite) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { action = R2ObjectAction.Copy }, enabled = !isMutating, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Outlined.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.r2_copy_object))
+                }
+                OutlinedButton(onClick = { action = R2ObjectAction.Move }, enabled = !isMutating, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.AutoMirrored.Outlined.DriveFileMove, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.r2_move_object))
+                }
+            }
+            OutlinedButton(onClick = { action = R2ObjectAction.Rename }, enabled = !isMutating, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Outlined.DriveFileRenameOutline, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.r2_rename_object))
+            }
             if (confirmDelete) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { confirmDelete = false }, modifier = Modifier.weight(1f)) {
@@ -853,6 +938,98 @@ private fun ObjectDetail(
                     Text(stringResource(R.string.r2_delete), color = Color(0xFFE5484D))
                 }
             }
+        }
+    }
+
+    action?.let { current ->
+        ObjectMutationDialog(
+            action = current,
+            currentKey = obj.key,
+            isSaving = isMutating,
+            onDismiss = { action = null },
+            onConfirm = { destination ->
+                when (current) {
+                    R2ObjectAction.Copy -> onCopyObject(destination)
+                    R2ObjectAction.Move, R2ObjectAction.Rename -> onMoveObject(destination)
+                }
+                action = null
+            },
+        )
+    }
+}
+
+private enum class R2ObjectAction { Copy, Move, Rename }
+
+@Composable
+private fun ObjectMutationDialog(
+    action: R2ObjectAction,
+    currentKey: String,
+    isSaving: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var key by remember(action, currentKey) {
+        mutableStateOf(
+            when (action) {
+                R2ObjectAction.Copy -> currentKey.substringBeforeLast('/', missingDelimiterValue = "").let { prefix ->
+                    val name = currentKey.substringAfterLast('/')
+                    if (prefix.isBlank()) "copy-$name" else "$prefix/copy-$name"
+                }
+                R2ObjectAction.Move, R2ObjectAction.Rename -> currentKey
+            },
+        )
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                stringResource(
+                    when (action) {
+                        R2ObjectAction.Copy -> R.string.r2_copy_object
+                        R2ObjectAction.Move -> R.string.r2_move_object
+                        R2ObjectAction.Rename -> R.string.r2_rename_object
+                    },
+                ),
+            )
+        },
+        text = {
+            OutlinedTextField(
+                value = key,
+                onValueChange = { key = it },
+                label = { Text(stringResource(R.string.r2_destination_key)) },
+                minLines = 2,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            Button(onClick = { onConfirm(key.trim()) }, enabled = key.isNotBlank() && key != currentKey && !isSaving) {
+                Text(stringResource(R.string.common_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+        },
+    )
+}
+
+@Composable
+private fun ObjectPreviewSheet(title: String, text: String) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(title, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = RoundedCornerShape(14.dp)) {
+            Text(
+                text.take(20_000),
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.fillMaxWidth().height(420.dp).verticalScroll(rememberScrollState()).padding(12.dp),
+            )
         }
     }
 }

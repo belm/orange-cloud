@@ -3,7 +3,7 @@
      （见对应 values-* 目录）+ res/xml/locales_config.xml。新增 key 时务必同步补齐全部 8 个 values-* 目录，
      否则缺失项回退到本默认文件（lint MissingTranslation 会报）。format 占位符 %1$d/%1$s 各语须一致。 -->
 <resources>
-    <string name="app_name">Orange Cloud</string>
+    <string name="app_name">Cloudflare</string>
 
     <!-- 晨昏问候（占位，随时刻变化） -->
     <string name="greeting_dawn">清晨好</string>
@@ -82,6 +82,7 @@
     <string name="storage_r2">R2 存储桶</string>
     <string name="storage_d1">D1 数据库</string>
     <string name="storage_kv">KV 命名空间</string>
+    <string name="nav_tunnels">隧道</string>
     <string name="r2_empty">还没有存储桶</string>
     <string name="r2_objects_empty">该存储桶为空</string>
     <string name="r2_upload">上传</string>
@@ -111,6 +112,17 @@
     <string name="r2_uploading">正在上传</string>
     <string name="r2_bucket_settings">Bucket 设置</string>
     <string name="r2_settings_saved">设置已保存</string>
+    <string name="r2_object_copied">对象已复制</string>
+    <string name="r2_object_moved">对象已移动</string>
+    <string name="r2_url_copied">访问 URL 已复制</string>
+    <string name="r2_preview">预览</string>
+    <string name="r2_preview_too_large">文件超过 1 MB，请下载后查看</string>
+    <string name="r2_preview_unavailable">暂不支持预览此对象</string>
+    <string name="r2_copy_url">复制 URL</string>
+    <string name="r2_copy_object">复制对象</string>
+    <string name="r2_move_object">移动对象</string>
+    <string name="r2_rename_object">重命名对象</string>
+    <string name="r2_destination_key">目标 Key</string>
     <string name="r2_managed_domain">r2.dev 公共访问</string>
     <string name="r2_domain_unavailable">暂未返回域名</string>
     <string name="r2_custom_domains">自定义域名</string>
@@ -275,6 +287,13 @@
     <string name="dash_usage_requests_caption">域名流量汇总</string>
     <string name="dash_usage_r2">R2 · 存储桶</string>
     <string name="dash_usage_r2_caption">已创建 Bucket</string>
+    <string name="dash_usage_r2_storage">R2 · 存储</string>
+    <string name="dash_usage_r2_month">本月请求 %1$s</string>
+    <string name="dash_ops_center">运营面板</string>
+    <string name="dash_ops_healthy">状态正常</string>
+    <string name="dash_ops_attention">需要关注</string>
+    <string name="dash_ops_subtitle">域名、Tunnel 与核心资源状态</string>
+    <string name="dash_tunnel_caption">共 %1$s 条 Tunnel</string>
     <string name="dash_recent">最近访问</string>
     <string name="dash_view_all">查看全部</string>
     <string name="dash_quick">快捷操作</string>
