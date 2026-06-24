@@ -503,6 +503,7 @@ class R2ObjectListViewModel @Inject constructor(
 data class D1QueryUiState(
     val results: List<D1QueryResult> = emptyList(),
     val columns: List<String> = emptyList(),
+    val history: List<String> = emptyList(),
     val isRunning: Boolean = false,
     val error: String? = null,
     val missingScope: Boolean = false,
@@ -555,7 +556,13 @@ class D1QueryViewModel @Inject constructor(
                 val accountId = accountStore.selectedAccountId.value ?: error("no account")
                 val results = storageRepository.query(accountId, databaseId, sql.trim())
                 val columns = results.firstOrNull()?.results?.firstOrNull()?.keys?.toList().orEmpty()
-                _uiState.update { it.copy(results = results, columns = columns) }
+                _uiState.update {
+                    it.copy(
+                        results = results,
+                        columns = columns,
+                        history = (listOf(sql.trim()) + it.history.filterNot { old -> old == sql.trim() }).take(12),
+                    )
+                }
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message ?: "error", results = emptyList(), columns = emptyList()) }
             } finally {
@@ -575,6 +582,7 @@ sealed interface D1RowEvent {
 
 data class D1TableUiState(
     val columns: List<D1Column> = emptyList(),
+    val indexes: List<String> = emptyList(),
     val rows: List<Map<String, JsonElement>> = emptyList(),
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
@@ -626,6 +634,7 @@ class D1TableViewModel @Inject constructor(
                 accountStore.ensureLoaded()
                 val accountId = accountStore.selectedAccountId.value ?: error("no account")
                 var columns = _uiState.value.columns
+                var indexes = _uiState.value.indexes
                 if (columns.isEmpty()) {
                     val info = storageRepository.query(accountId, databaseId, "PRAGMA table_info($quotedTable)")
                     columns = info.firstOrNull()?.results.orEmpty().mapNotNull { row ->
@@ -635,9 +644,22 @@ class D1TableViewModel @Inject constructor(
                         D1Column(name, type, pk)
                     }
                 }
+                if (indexes.isEmpty()) {
+                    val indexInfo = storageRepository.query(accountId, databaseId, "PRAGMA index_list($quotedTable)")
+                    indexes = indexInfo.firstOrNull()?.results.orEmpty().mapNotNull { row ->
+                        val name = (row["name"] as? JsonPrimitive)?.content ?: return@mapNotNull null
+                        val unique = ((row["unique"] as? JsonPrimitive)?.content ?: "0") != "0"
+                        val origin = (row["origin"] as? JsonPrimitive)?.content.orEmpty()
+                        buildString {
+                            append(name)
+                            if (unique) append(" · UNIQUE")
+                            if (origin.isNotBlank()) append(" · ").append(origin)
+                        }
+                    }
+                }
                 offset = 0
                 val (rows, more) = fetchPage(accountId, 0)
-                _uiState.update { it.copy(columns = columns, rows = rows, hasMore = more) }
+                _uiState.update { it.copy(columns = columns, indexes = indexes, rows = rows, hasMore = more) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message ?: "error") }
             } finally {

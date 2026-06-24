@@ -112,6 +112,10 @@
     <string name="r2_object_moved">Object moved</string>
     <string name="r2_url_copied">URL copied</string>
     <string name="r2_preview">Preview</string>
+    <string name="r2_preview_search">Search preview</string>
+    <string name="r2_preview_matches">%1$d matches</string>
+    <string name="r2_preview_json">Formatted JSON</string>
+    <string name="r2_preview_text">Text preview</string>
     <string name="r2_preview_too_large">File is over 1 MB. Download it to view.</string>
     <string name="r2_preview_unavailable">Preview is not available for this object</string>
     <string name="r2_copy_url">Copy URL</string>
@@ -133,6 +137,8 @@
     <string name="d1_ok">Success, %1$d rows affected</string>
     <string name="d1_tables_section">Tables</string>
     <string name="d1_table_empty">No data in this table yet</string>
+    <string name="d1_schema">Schema</string>
+    <string name="d1_indexes">Indexes</string>
     <string name="d1_row_tap_edit">Tap a row to edit.</string>
     <string name="d1_row_readonly_hint">Current authorization is read-only (d1.read).</string>
     <string name="d1_row_edit_title">Edit row</string>

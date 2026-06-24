@@ -1,5 +1,8 @@
 package jiamin.chen.orangecloud.ui.storage
 
+import android.content.Context
+import android.content.Intent
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +19,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.TableRows
 import androidx.compose.material3.Button
@@ -41,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -56,6 +62,9 @@ import jiamin.chen.orangecloud.core.design.rememberSkyPhase
 import jiamin.chen.orangecloud.core.design.theme.OcOrange
 import jiamin.chen.orangecloud.data.model.D1Database
 import jiamin.chen.orangecloud.data.model.tailDisplayText
+import androidx.core.content.FileProvider
+import kotlinx.serialization.json.JsonElement
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -154,6 +163,7 @@ fun D1QueryScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val phase = rememberSkyPhase()
     val onSky = phase.onSky
+    val context = LocalContext.current
     var sql by rememberSaveable { mutableStateOf("SELECT name FROM sqlite_master WHERE type='table';") }
 
     SkyBackground(phase = phase) {
@@ -205,17 +215,46 @@ fun D1QueryScreen(
                     textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
                     modifier = Modifier.fillMaxWidth().height(140.dp),
                 )
-                Button(
-                    onClick = { viewModel.run(sql) },
-                    enabled = !state.isRunning && sql.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(containerColor = OcOrange, contentColor = Color.White),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    if (state.isRunning) {
-                        CircularProgressIndicator(Modifier.height(18.dp).width(18.dp), strokeWidth = 2.dp, color = Color.White)
-                        Spacer(Modifier.width(8.dp))
+                if (state.history.isNotEmpty()) {
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        state.history.forEach { item ->
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                                modifier = Modifier.clickable { sql = item },
+                            ) {
+                                Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Outlined.History, contentDescription = null, modifier = Modifier.height(14.dp).width(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(item, fontSize = 12.sp, maxLines = 1, fontFamily = FontFamily.Monospace)
+                                }
+                            }
+                        }
                     }
-                    Text(stringResource(R.string.d1_run))
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { viewModel.run(sql) },
+                        enabled = !state.isRunning && sql.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(containerColor = OcOrange, contentColor = Color.White),
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        if (state.isRunning) {
+                            CircularProgressIndicator(Modifier.height(18.dp).width(18.dp), strokeWidth = 2.dp, color = Color.White)
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        Text(stringResource(R.string.d1_run))
+                    }
+                    Button(
+                        onClick = { shareCsv(context, viewModel.databaseName.ifBlank { "d1" }, state.columns, state.results.firstOrNull()?.results.orEmpty()) },
+                        enabled = state.columns.isNotEmpty(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary, contentColor = MaterialTheme.colorScheme.onSecondary),
+                    ) {
+                        Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.height(18.dp).width(18.dp))
+                    }
                 }
                 state.error?.let {
                     Text(it, color = Color(0xFFE5484D), fontSize = 13.sp, fontFamily = FontFamily.Monospace)
@@ -233,6 +272,36 @@ fun D1QueryScreen(
             }
         }
     }
+}
+
+private fun shareCsv(
+    context: Context,
+    databaseName: String,
+    columns: List<String>,
+    rows: List<Map<String, JsonElement>>,
+) {
+    val csv = buildString {
+        appendLine(columns.joinToString(",") { it.csvEscape() })
+        rows.forEach { row ->
+            appendLine(columns.joinToString(",") { col -> (row[col]?.tailDisplayText() ?: "").csvEscape() })
+        }
+    }
+    val dir = File(context.cacheDir, "exports").apply { mkdirs() }
+    val file = File(dir, "${databaseName.ifBlank { "d1" }}-query.csv")
+    file.writeText(csv)
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/csv"
+        putExtra(Intent.EXTRA_STREAM, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    context.startActivity(Intent.createChooser(intent, null))
+}
+
+private fun String.csvEscape(): String {
+    val needsQuote = any { it == ',' || it == '"' || it == '\n' || it == '\r' }
+    val escaped = replace("\"", "\"\"")
+    return if (needsQuote) "\"$escaped\"" else escaped
 }
 
 @Composable

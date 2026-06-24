@@ -2,6 +2,8 @@ package jiamin.chen.orangecloud.ui.storage
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -10,6 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -81,6 +84,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -107,6 +112,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import java.io.File
 
 @Composable
@@ -285,8 +291,7 @@ fun R2ObjectListScreen(
     val copiedUrlMsg = stringResource(R.string.r2_url_copied)
     val previewTooLargeMsg = stringResource(R.string.r2_preview_too_large)
     val previewUnavailableMsg = stringResource(R.string.r2_preview_unavailable)
-    var previewTitle by remember { mutableStateOf("") }
-    var previewText by remember { mutableStateOf<String?>(null) }
+    var preview by remember { mutableStateOf<R2Preview?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -347,17 +352,25 @@ fun R2ObjectListScreen(
     fun previewObject(obj: R2Object) {
         scope.launch {
             val size = obj.size ?: 0L
-            if (size > 1_048_576L) {
+            val contentType = obj.httpMetadata?.contentType.orEmpty()
+            val isImage = contentType.startsWith("image/") || obj.key.isImageKey()
+            if (!isImage && size > 1_048_576L) {
                 snackbarHostState.showSnackbar(previewTooLargeMsg)
                 return@launch
             }
             val bytes = viewModel.objectBytes(obj.key) ?: return@launch
-            val text = runCatching { bytes.toString(Charsets.UTF_8).takeIf { it.isNotBlank() } }.getOrNull()
-            if (text == null) snackbarHostState.showSnackbar(previewUnavailableMsg)
-            else {
-                previewTitle = obj.key
-                previewText = text
+            val next = withContext(Dispatchers.IO) {
+                when {
+                    isImage -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.let { R2Preview.Image(obj.key, it) }
+                    contentType.contains("json", ignoreCase = true) || obj.key.endsWith(".json", ignoreCase = true) ->
+                        runCatching { R2Preview.Text(obj.key, formatJsonPreview(bytes.decodeToString()), isJson = true) }.getOrNull()
+                    contentType.startsWith("text/") || obj.key.isTextKey() ->
+                        runCatching { R2Preview.Text(obj.key, bytes.decodeToString(), isJson = false) }.getOrNull()
+                    else -> runCatching { bytes.decodeToString().takeIf { it.isNotBlank() }?.let { R2Preview.Text(obj.key, it, isJson = false) } }.getOrNull()
+                }
             }
+            if (next == null) snackbarHostState.showSnackbar(previewUnavailableMsg)
+            else preview = next
         }
     }
 
@@ -534,12 +547,12 @@ fun R2ObjectListScreen(
         }
     }
 
-    previewText?.let { text ->
+    preview?.let { current ->
         ModalBottomSheet(
-            onDismissRequest = { previewText = null },
+            onDismissRequest = { preview = null },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         ) {
-            ObjectPreviewSheet(title = previewTitle, text = text)
+            ObjectPreviewSheet(preview = current)
         }
     }
 }
@@ -1012,8 +1025,20 @@ private fun ObjectMutationDialog(
     )
 }
 
+private sealed interface R2Preview {
+    val title: String
+
+    data class Image(override val title: String, val bitmap: Bitmap) : R2Preview
+    data class Text(override val title: String, val text: String, val isJson: Boolean) : R2Preview
+}
+
 @Composable
-private fun ObjectPreviewSheet(title: String, text: String) {
+private fun ObjectPreviewSheet(preview: R2Preview) {
+    var query by remember(preview.title) { mutableStateOf("") }
+    val displayText = (preview as? R2Preview.Text)?.text.orEmpty()
+    val matchCount = remember(displayText, query) {
+        if (query.isBlank()) 0 else Regex.escape(query).toRegex(RegexOption.IGNORE_CASE).findAll(displayText).count()
+    }
     Column(
         Modifier
             .fillMaxWidth()
@@ -1021,17 +1046,56 @@ private fun ObjectPreviewSheet(title: String, text: String) {
             .padding(bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(title, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = RoundedCornerShape(14.dp)) {
-            Text(
-                text.take(20_000),
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.fillMaxWidth().height(420.dp).verticalScroll(rememberScrollState()).padding(12.dp),
-            )
+        Text(preview.title, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        when (preview) {
+            is R2Preview.Image -> {
+                Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = RoundedCornerShape(14.dp)) {
+                    Image(
+                        bitmap = preview.bitmap.asImageBitmap(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxWidth().height(460.dp).padding(10.dp),
+                    )
+                }
+            }
+            is R2Preview.Text -> {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                    label = { Text(stringResource(R.string.r2_preview_search)) },
+                    supportingText = {
+                        if (query.isNotBlank()) Text(stringResource(R.string.r2_preview_matches, matchCount))
+                        else Text(if (preview.isJson) stringResource(R.string.r2_preview_json) else stringResource(R.string.r2_preview_text))
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = RoundedCornerShape(14.dp)) {
+                    Text(
+                        preview.text.take(80_000),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.fillMaxWidth().height(420.dp).verticalScroll(rememberScrollState()).padding(12.dp),
+                    )
+                }
+            }
         }
     }
+}
+
+private fun String.isImageKey(): Boolean =
+    endsWith(".png", true) || endsWith(".jpg", true) || endsWith(".jpeg", true) || endsWith(".webp", true) || endsWith(".gif", true)
+
+private fun String.isTextKey(): Boolean =
+    listOf(".txt", ".log", ".md", ".csv", ".xml", ".html", ".css", ".js", ".ts", ".yaml", ".yml").any { endsWith(it, true) }
+
+private fun formatJsonPreview(raw: String): String {
+    val parser = Json { ignoreUnknownKeys = true }
+    val pretty = Json { prettyPrint = true }
+    val element = parser.decodeFromString(JsonElement.serializer(), raw)
+    return pretty.encodeToString(JsonElement.serializer(), element)
 }
 
 @Composable

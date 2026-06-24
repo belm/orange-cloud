@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.TableRows
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -120,6 +121,7 @@ fun D1TableScreen(
                             .padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
+                        TableSchemaCard(columns = state.columns, indexes = state.indexes)
                         DataGrid(
                             columns = state.columns,
                             rows = state.rows,
@@ -168,6 +170,48 @@ fun D1TableScreen(
 }
 
 // MARK: - 数据网格（横向滚动，表头 + 数据行）
+
+@Composable
+private fun TableSchemaCard(
+    columns: List<D1Column>,
+    indexes: List<String>,
+) {
+    androidx.compose.material3.Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.d1_schema), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            }
+            columns.forEach { column ->
+                Text(
+                    buildString {
+                        append(column.name)
+                        append(" · ")
+                        append(column.type.ifBlank { "ANY" })
+                        if (column.isPrimaryKey) append(" · PK")
+                    },
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (indexes.isNotEmpty()) {
+                HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                Text(stringResource(R.string.d1_indexes), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                indexes.forEach { index ->
+                    Text(index, fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun DataGrid(
