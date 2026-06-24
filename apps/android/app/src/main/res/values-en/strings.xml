@@ -139,6 +139,9 @@
     <string name="d1_table_empty">No data in this table yet</string>
     <string name="d1_schema">Schema</string>
     <string name="d1_indexes">Indexes</string>
+    <string name="d1_history">Query history</string>
+    <string name="d1_favorites">Favorite SQL</string>
+    <string name="d1_favorite">Favorite</string>
     <string name="d1_row_tap_edit">Tap a row to edit.</string>
     <string name="d1_row_readonly_hint">Current authorization is read-only (d1.read).</string>
     <string name="d1_row_edit_title">Edit row</string>
@@ -154,6 +157,10 @@
     <string name="kv_edit_key">Edit key</string>
     <string name="kv_saved">Saved</string>
     <string name="kv_readonly">Read-only: KV write access not granted</string>
+    <string name="kv_search">Search keys</string>
+    <string name="kv_selected_count">%1$d selected</string>
+    <string name="kv_delete_selected">Delete selected</string>
+    <string name="kv_format_json">Format JSON</string>
 
     <!-- DNS records -->
     <string name="dns_title_fallback">DNS records</string>
@@ -233,6 +240,7 @@
     <string name="tail_clear">Clear</string>
     <string name="tail_reconnect">Reconnect</string>
     <string name="tail_events">%1$d events</string>
+    <string name="tail_search">Search logs</string>
 
     <!-- Domain detail / tools -->
     <string name="zone_status_active">Active</string>

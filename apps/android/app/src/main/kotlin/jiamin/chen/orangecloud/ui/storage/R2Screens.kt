@@ -307,19 +307,21 @@ fun R2ObjectListScreen(
         }
     }
 
-    // SAF 选取任意文件上传
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+    // SAF 多选文件上传
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
         scope.launch {
-            val doc = withContext(Dispatchers.IO) {
-                runCatching {
+            val docs = withContext(Dispatchers.IO) {
+                uris.mapNotNull { uri ->
+                    runCatching {
                     val name = queryDisplayName(context, uri) ?: "upload"
                     val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
                     val bytes = context.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
                     Triple(name, mime, bytes)
-                }.getOrNull()
+                    }.getOrNull()
+                }
             }
-            if (doc != null) viewModel.upload(doc.first, doc.second, doc.third)
+            if (docs.isNotEmpty()) viewModel.uploadMany(docs)
             else snackbarHostState.showSnackbar(noAppMsg)
         }
     }
@@ -471,6 +473,15 @@ fun R2ObjectListScreen(
                             fontWeight = FontWeight.SemiBold,
                         )
                         LinearProgressIndicator(progress = { state.uploadProgress ?: 0.2f }, modifier = Modifier.fillMaxWidth())
+                        state.uploadQueue.take(4).forEach { item ->
+                            Text(
+                                "${item.status} · ${item.name}",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }

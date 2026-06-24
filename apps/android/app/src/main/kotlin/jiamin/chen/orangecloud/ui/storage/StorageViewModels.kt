@@ -179,6 +179,12 @@ sealed interface R2Event {
     data class Error(val message: String?) : R2Event
 }
 
+data class R2UploadQueueItem(
+    val name: String,
+    val key: String,
+    val status: String = "pending",
+)
+
 data class R2BucketSettingsUiState(
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
@@ -198,6 +204,7 @@ data class R2ObjectUiState(
     val isUploading: Boolean = false,
     val uploadName: String? = null,
     val uploadProgress: Float? = null,
+    val uploadQueue: List<R2UploadQueueItem> = emptyList(),
     val isDownloading: Boolean = false,
     val isObjectMutating: Boolean = false,
     val isBatchDeleting: Boolean = false,
@@ -330,6 +337,45 @@ class R2ObjectListViewModel @Inject constructor(
                 _uiState.update { it.copy(uploadProgress = 0.55f) }
                 storageRepository.putObject(accountId, bucket, key, bytes, contentType)
                 _uiState.update { it.copy(uploadProgress = 1f) }
+                eventChannel.send(R2Event.Uploaded)
+                loadFirst()
+            } catch (e: Exception) {
+                eventChannel.send(R2Event.Error(e.message))
+            } finally {
+                _uiState.update { it.copy(isUploading = false, uploadName = null, uploadProgress = null) }
+            }
+        }
+    }
+
+    fun uploadMany(files: List<Triple<String, String, ByteArray>>) {
+        if (!canWrite || files.isEmpty()) return
+        viewModelScope.launch {
+            val prefix = _uiState.value.currentPrefix
+            val queue = files.map { (name, _, _) -> R2UploadQueueItem(name = name, key = prefix + name) }
+            _uiState.update { it.copy(isUploading = true, uploadQueue = queue, uploadProgress = 0f) }
+            try {
+                val accountId = accountStore.selectedAccountId.value ?: error("no account")
+                files.forEachIndexed { index, (name, contentType, bytes) ->
+                    val key = prefix + name
+                    _uiState.update { state ->
+                        state.copy(
+                            uploadName = key,
+                            uploadProgress = index.toFloat() / files.size,
+                            uploadQueue = state.uploadQueue.map { item ->
+                                if (item.key == key) item.copy(status = "uploading") else item
+                            },
+                        )
+                    }
+                    storageRepository.putObject(accountId, bucket, key, bytes, contentType)
+                    _uiState.update { state ->
+                        state.copy(
+                            uploadProgress = (index + 1).toFloat() / files.size,
+                            uploadQueue = state.uploadQueue.map { item ->
+                                if (item.key == key) item.copy(status = "done") else item
+                            },
+                        )
+                    }
+                }
                 eventChannel.send(R2Event.Uploaded)
                 loadFirst()
             } catch (e: Exception) {
@@ -504,6 +550,7 @@ data class D1QueryUiState(
     val results: List<D1QueryResult> = emptyList(),
     val columns: List<String> = emptyList(),
     val history: List<String> = emptyList(),
+    val favorites: List<String> = emptyList(),
     val isRunning: Boolean = false,
     val error: String? = null,
     val missingScope: Boolean = false,
@@ -568,6 +615,15 @@ class D1QueryViewModel @Inject constructor(
             } finally {
                 _uiState.update { it.copy(isRunning = false) }
             }
+        }
+    }
+
+    fun toggleFavorite(sql: String) {
+        val normalized = sql.trim()
+        if (normalized.isBlank()) return
+        _uiState.update {
+            val favorites = if (normalized in it.favorites) it.favorites - normalized else (listOf(normalized) + it.favorites).take(20)
+            it.copy(favorites = favorites)
         }
     }
 }
@@ -752,6 +808,8 @@ sealed interface KVEvent {
 
 data class KVKeyUiState(
     val keys: List<KVKey> = emptyList(),
+    val query: String = "",
+    val selectedKeys: Set<String> = emptySet(),
     val isLoading: Boolean = false,
     val isLoadingMore: Boolean = false,
     val hasError: Boolean = false,
@@ -794,6 +852,21 @@ class KVKeyListViewModel @Inject constructor(
             fetchPage(reset = true)
             _uiState.update { it.copy(isLoading = false) }
         }
+    }
+
+    fun updateQuery(query: String) {
+        _uiState.update { it.copy(query = query) }
+    }
+
+    fun toggleSelection(key: String) {
+        _uiState.update {
+            val selected = if (key in it.selectedKeys) it.selectedKeys - key else it.selectedKeys + key
+            it.copy(selectedKeys = selected)
+        }
+    }
+
+    fun clearSelection() {
+        _uiState.update { it.copy(selectedKeys = emptySet()) }
     }
 
     fun loadMore() {
@@ -852,6 +925,21 @@ class KVKeyListViewModel @Inject constructor(
                 storageRepository.deleteKey(accountId, namespaceId, key)
                 eventChannel.send(KVEvent.Deleted)
                 loadFirst()
+            } catch (e: Exception) {
+                eventChannel.send(KVEvent.Error(e.message))
+            }
+        }
+    }
+
+    fun deleteSelected() {
+        val keys = _uiState.value.selectedKeys
+        if (!canWrite || keys.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                val accountId = accountStore.selectedAccountId.value ?: error("no account")
+                keys.forEach { storageRepository.deleteKey(accountId, namespaceId, it) }
+                _uiState.update { it.copy(keys = it.keys.filterNot { key -> key.name in keys }, selectedKeys = emptySet()) }
+                eventChannel.send(KVEvent.Deleted)
             } catch (e: Exception) {
                 eventChannel.send(KVEvent.Error(e.message))
             }

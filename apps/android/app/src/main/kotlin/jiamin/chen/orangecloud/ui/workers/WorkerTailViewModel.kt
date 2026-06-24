@@ -150,7 +150,6 @@ class WorkerTailViewModel @Inject constructor(
     }
 
     private fun handle(item: TailTraceItem) {
-        if (_paused.value) return
         val eventMs = item.eventTimestamp ?: System.currentTimeMillis()
         val newLines = buildList {
             val request = item.event?.request

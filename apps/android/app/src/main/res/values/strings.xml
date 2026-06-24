@@ -143,6 +143,9 @@
     <string name="d1_table_empty">这张表里还没有数据</string>
     <string name="d1_schema">表结构</string>
     <string name="d1_indexes">索引</string>
+    <string name="d1_history">查询历史</string>
+    <string name="d1_favorites">收藏 SQL</string>
+    <string name="d1_favorite">收藏</string>
     <string name="d1_row_tap_edit">点按一行进行编辑。</string>
     <string name="d1_row_readonly_hint">当前授权仅限读取（d1.read）。</string>
     <string name="d1_row_edit_title">编辑行</string>
@@ -158,6 +161,10 @@
     <string name="kv_edit_key">编辑键</string>
     <string name="kv_saved">已保存</string>
     <string name="kv_readonly">只读：未授予 KV 写入权限</string>
+    <string name="kv_search">搜索 Key</string>
+    <string name="kv_selected_count">已选择 %1$d 个</string>
+    <string name="kv_delete_selected">删除所选</string>
+    <string name="kv_format_json">格式化 JSON</string>
 
     <!-- DNS 记录 -->
     <string name="dns_title_fallback">DNS 记录</string>
@@ -239,6 +246,7 @@
     <string name="tail_clear">清空</string>
     <string name="tail_reconnect">重连</string>
     <string name="tail_events">%1$d 个事件</string>
+    <string name="tail_search">搜索日志</string>
 
     <!-- 域名工具中枢 / 详情 -->
     <string name="zone_status_active">已启用</string>

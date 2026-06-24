@@ -1,34 +1,46 @@
 package jiamin.chen.orangecloud.ui.storage
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -53,6 +65,8 @@ import jiamin.chen.orangecloud.core.design.SkyHeader
 import jiamin.chen.orangecloud.core.design.onSky
 import jiamin.chen.orangecloud.core.design.rememberSkyPhase
 import jiamin.chen.orangecloud.core.design.theme.OcOrange
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 
 @Composable
 fun KVNamespaceListScreen(
@@ -95,7 +109,19 @@ fun KVKeyListScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var editKey by remember { mutableStateOf<String?>(null) }   // 现有键
     var creating by remember { mutableStateOf(false) }
+    var prefix by remember { mutableStateOf("") }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val visibleKeys = remember(state.keys, state.query, prefix) {
+        state.keys.filter {
+            it.name.contains(state.query, ignoreCase = true) &&
+                (prefix.isBlank() || it.name.startsWith(prefix))
+        }
+    }
+    val prefixes = remember(state.keys) {
+        state.keys.mapNotNull { key ->
+            key.name.substringBefore('/', missingDelimiterValue = "").takeIf { it.isNotBlank() && key.name.contains('/') }?.plus("/")
+        }.distinct().sorted()
+    }
 
     val savedMsg = stringResource(R.string.kv_saved)
     val deletedMsg = stringResource(R.string.dns_deleted)
@@ -124,6 +150,33 @@ fun KVKeyListScreen(
                     backDescription = stringResource(R.string.common_back),
                     refreshDescription = stringResource(R.string.common_refresh),
                 )
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = state.query,
+                        onValueChange = viewModel::updateQuery,
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                        label = { Text(stringResource(R.string.kv_search)) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PrefixChip(stringResource(R.string.r2_root), prefix.isBlank()) { prefix = "" }
+                        prefixes.forEach { item -> PrefixChip(item, prefix == item) { prefix = item } }
+                    }
+                    if (state.selectedKeys.isNotEmpty()) {
+                        Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)) {
+                            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(stringResource(R.string.kv_selected_count, state.selectedKeys.size), modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                TextButton(onClick = viewModel::clearSelection) { Text(stringResource(R.string.common_cancel)) }
+                                Button(onClick = viewModel::deleteSelected, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE5484D), contentColor = Color.White)) {
+                                    Icon(Icons.Outlined.Delete, contentDescription = null)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(stringResource(R.string.kv_delete_selected))
+                                }
+                            }
+                        }
+                    }
+                }
                 when {
                     state.missingScope ->
                         SkyEmptyState(Icons.Outlined.Lock, stringResource(R.string.scope_missing), onSky, stringResource(R.string.common_refresh)) { viewModel.loadFirst() }
@@ -134,15 +187,30 @@ fun KVKeyListScreen(
                     state.keys.isEmpty() && state.hasError ->
                         SkyEmptyState(Icons.Outlined.Key, stringResource(R.string.error_generic), onSky, stringResource(R.string.common_refresh)) { viewModel.loadFirst() }
 
-                    state.keys.isEmpty() ->
+                    visibleKeys.isEmpty() ->
                         SkyEmptyState(Icons.Outlined.Key, stringResource(R.string.kv_keys_empty), onSky, stringResource(R.string.common_refresh)) { viewModel.loadFirst() }
 
                     else -> LazyColumn(
                         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        items(state.keys, key = { it.name }) { kvKey ->
-                            StorageRow(Icons.Outlined.Key, kvKey.name, showChevron = state.canWrite, onClick = { editKey = kvKey.name })
+                        items(visibleKeys, key = { it.name }) { kvKey ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (state.selectedKeys.isNotEmpty()) {
+                                    Checkbox(checked = kvKey.name in state.selectedKeys, onCheckedChange = { viewModel.toggleSelection(kvKey.name) })
+                                }
+                                Box(Modifier.weight(1f)) {
+                                    StorageRow(
+                                        Icons.Outlined.Key,
+                                        kvKey.name,
+                                        showChevron = state.canWrite,
+                                        onClick = {
+                                            if (state.selectedKeys.isNotEmpty()) viewModel.toggleSelection(kvKey.name) else editKey = kvKey.name
+                                        },
+                                        onLongClick = { viewModel.toggleSelection(kvKey.name) },
+                                    )
+                                }
+                            }
                         }
                         if (state.hasMore) {
                             item {
@@ -179,6 +247,22 @@ fun KVKeyListScreen(
             onSave = { key, value -> viewModel.saveValue(key, value) },
             onDelete = { viewModel.deleteKey(it) },
             onDismiss = { editKey = null; creating = false },
+        )
+    }
+}
+
+@Composable
+private fun PrefixChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        color = if (selected) OcOrange else MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+        modifier = Modifier.clickable(onClick = onClick),
+    ) {
+        Text(
+            label,
+            color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
         )
     }
 }
@@ -238,6 +322,13 @@ private fun KVValueSheet(
                     textStyle = androidx.compose.material3.MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
                     modifier = Modifier.fillMaxWidth().height(160.dp),
                 )
+                OutlinedButton(
+                    onClick = { valueText = formatKvJson(valueText) },
+                    enabled = valueText.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.kv_format_json))
+                }
             }
             if (canWrite) {
                 Button(
@@ -259,3 +350,9 @@ private fun KVValueSheet(
         }
     }
 }
+
+private fun formatKvJson(raw: String): String = runCatching {
+    val parser = Json { ignoreUnknownKeys = true }
+    val pretty = Json { prettyPrint = true }
+    pretty.encodeToString(JsonElement.serializer(), parser.decodeFromString(JsonElement.serializer(), raw))
+}.getOrDefault(raw)

@@ -21,6 +21,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.TableRows
 import androidx.compose.material3.Button
@@ -216,6 +218,7 @@ fun D1QueryScreen(
                     modifier = Modifier.fillMaxWidth().height(140.dp),
                 )
                 if (state.history.isNotEmpty()) {
+                    Text(stringResource(R.string.d1_history), color = onSky.copy(alpha = 0.85f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Row(
                         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -235,7 +238,39 @@ fun D1QueryScreen(
                         }
                     }
                 }
+                if (state.favorites.isNotEmpty()) {
+                    Text(stringResource(R.string.d1_favorites), color = onSky.copy(alpha = 0.85f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        state.favorites.forEach { item ->
+                            Surface(
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                                modifier = Modifier.clickable { sql = item },
+                            ) {
+                                Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Outlined.Star, contentDescription = null, modifier = Modifier.height(14.dp).width(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(item, fontSize = 12.sp, maxLines = 1, fontFamily = FontFamily.Monospace)
+                                }
+                            }
+                        }
+                    }
+                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { viewModel.toggleFavorite(sql) },
+                        enabled = sql.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary, contentColor = MaterialTheme.colorScheme.onTertiary),
+                    ) {
+                        Icon(
+                            if (sql.trim() in state.favorites) Icons.Outlined.Star else Icons.Outlined.StarBorder,
+                            contentDescription = stringResource(R.string.d1_favorite),
+                            modifier = Modifier.height(18.dp).width(18.dp),
+                        )
+                    }
                     Button(
                         onClick = { viewModel.run(sql) },
                         enabled = !state.isRunning && sql.isNotBlank(),
